@@ -1,13 +1,13 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
-import { DbPokerTable, Player, Card, ChatMessage } from '../types/poker';
+import { DbPokerTable, Card, ChatMessage } from '../types/poker';
 import { toast } from "@/components/ui/use-toast";
 
 export const usePokerTable = (tableId: string) => {
   const [isLoading, setIsLoading] = useState(true);
   const [table, setTable] = useState<DbPokerTable | null>(null);
-  const [players, setPlayers] = useState<Player[]>([]);
+  const [players, setPlayers] = useState<any[]>([]);
   const [communityCards, setCommunityCards] = useState<Card[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
@@ -21,7 +21,15 @@ export const usePokerTable = (tableId: string) => {
         .single();
       
       if (tableError) throw tableError;
-      setTable(tableData);
+      
+      // Ensure the status is of the correct type
+      const typedTableData: DbPokerTable = {
+        ...tableData,
+        status: tableData.status as "waiting" | "playing" | "finished",
+        current_round: tableData.current_round as "preflop" | "flop" | "turn" | "river" | "showdown"
+      };
+      
+      setTable(typedTableData);
       
       await loadPlayers();
       await loadCommunityCards();
@@ -63,22 +71,44 @@ export const usePokerTable = (tableId: string) => {
       
       if (error) throw error;
       
-      const formattedPlayers: Player[] = (data || []).map(item => ({
-        id: item.user_id,
-        name: item.profiles?.username || 'Unknown',
-        position: item.position,
-        chips: item.chips,
-        cards: item.cards ? item.cards as Card[] : [],
-        isActive: item.is_active || false,
-        isTurn: item.is_turn || false,
-        isFolded: item.is_folded || false,
-        isAllIn: item.is_all_in || false,
-        isDealer: item.is_dealer || false,
-        isSmallBlind: item.is_small_blind || false,
-        isBigBlind: item.is_big_blind || false,
-        currentBet: item.current_bet || 0,
-        avatar: item.profiles?.avatar_url
-      }));
+      const formattedPlayers = (data || []).map(item => {
+        // Make sure we safely access profile data
+        const username = item.profiles?.username || 'Unknown';
+        const avatar = item.profiles?.avatar_url || null;
+        
+        // Safe type conversion for cards
+        let playerCards: Card[] = [];
+        if (item.cards) {
+          try {
+            // Cast cards to the expected type
+            playerCards = (item.cards as any[]).map(card => ({
+              suit: card.suit as 'hearts' | 'diamonds' | 'clubs' | 'spades',
+              rank: card.rank as '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A',
+              faceUp: !!card.faceUp
+            }));
+          } catch (e) {
+            console.error('Error parsing player cards:', e);
+            playerCards = [];
+          }
+        }
+        
+        return {
+          id: item.user_id,
+          name: username,
+          position: item.position,
+          chips: item.chips,
+          cards: playerCards,
+          isActive: item.is_active || false,
+          isTurn: item.is_turn || false,
+          isFolded: item.is_folded || false,
+          isAllIn: item.is_all_in || false,
+          isDealer: item.is_dealer || false,
+          isSmallBlind: item.is_small_blind || false,
+          isBigBlind: item.is_big_blind || false,
+          currentBet: item.current_bet || 0,
+          avatar: avatar
+        };
+      });
       
       setPlayers(formattedPlayers);
     } catch (error) {
@@ -129,13 +159,18 @@ export const usePokerTable = (tableId: string) => {
       
       if (error) throw error;
       
-      const messages: ChatMessage[] = (data || []).map(msg => ({
-        id: msg.id,
-        playerId: msg.user_id,
-        playerName: msg.profiles?.username || 'Unknown',
-        message: msg.message,
-        timestamp: new Date(msg.created_at).getTime()
-      }));
+      const messages: ChatMessage[] = (data || []).map(msg => {
+        // Safely access the username
+        const username = msg.profiles?.username || 'Unknown';
+        
+        return {
+          id: msg.id,
+          playerId: msg.user_id,
+          playerName: username,
+          message: msg.message,
+          timestamp: new Date(msg.created_at).getTime()
+        };
+      });
       
       setChatMessages(messages);
     } catch (error) {

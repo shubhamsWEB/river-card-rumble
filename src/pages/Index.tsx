@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -11,7 +12,39 @@ import PokerTable from "@/components/PokerTable";
 import TableHeader from "@/components/poker/TableHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { DbPokerTable } from "@/types/poker";
-import { Loader2, Users } from "lucide-react";
+import { Loader2, Users, LogOut } from "lucide-react";
+
+// Define missing interfaces
+interface ChatMessage {
+  id: string;
+  playerId: string;
+  playerName: string;
+  message: string;
+  timestamp: number;
+}
+
+interface Player {
+  id: string;
+  name: string;
+  position: number;
+  chips: number;
+  cards: any[];
+  isActive: boolean;
+  isTurn: boolean;
+  isFolded: boolean;
+  isAllIn: boolean;
+  isDealer: boolean;
+  isSmallBlind: boolean;
+  isBigBlind: boolean;
+  currentBet: number;
+  avatar?: string;
+}
+
+interface PokerCard {
+  suit: 'hearts' | 'diamonds' | 'clubs' | 'spades';
+  rank: '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A';
+  faceUp: boolean;
+}
 
 const Index = () => {
   const { user, profile, signOut } = useAuth();
@@ -23,7 +56,7 @@ const Index = () => {
   const [currentTableId, setCurrentTableId] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
-  const [communityCards, setCommunityCards] = useState<Card[]>([]);
+  const [communityCards, setCommunityCards] = useState<PokerCard[]>([]);
   const [tableData, setTableData] = useState<any>(null);
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
