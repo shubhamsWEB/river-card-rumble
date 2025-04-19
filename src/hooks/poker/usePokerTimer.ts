@@ -1,6 +1,5 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/components/ui/use-toast";
 
 export const usePokerTimer = (tableId: string) => {
   const startTurnTimer = async () => {
@@ -11,10 +10,9 @@ export const usePokerTimer = (tableId: string) => {
         .select('user_id')
         .eq('table_id', tableId)
         .eq('is_turn', true)
-        .single();
+        .maybeSingle();
       
-      console.log("Turn started for player");
-      
+      console.log("Turn started for player:", playerData?.user_id);
     } catch (error) {
       console.error('Error in turn management:', error);
     }
@@ -26,8 +24,6 @@ export const usePokerTimer = (tableId: string) => {
 
   return {
     startTurnTimer,
-    cancelTurnTimer,
-    secondsLeft: 30,
-    isTimerRunning: false
+    cancelTurnTimer
   };
 };
