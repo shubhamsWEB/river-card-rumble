@@ -1,3 +1,4 @@
+
 import { useAuth } from "@/contexts/AuthContext";
 import { PlayerAction } from "@/types/poker";
 import { useGameStartup } from "./poker/useGameStartup";
@@ -7,13 +8,15 @@ import { usePlayerTurns } from "./poker/usePlayerTurns";
 import { useChatActions } from "./poker/useChatActions";
 import { useTableManagement } from "./poker/useTableManagement";
 import { usePlayerActionProcessor } from "./poker/actions/usePlayerActionProcessor";
+import { useShowdown } from "./poker/useShowdown";
 
 export const useTableActions = (tableId: string) => {
   const { user } = useAuth();
   const { checkAndStartGame, startGame } = useGameStartup(tableId);
   const { dealFlop, dealTurn, dealRiver } = useCardDealing(tableId);
-  const { advanceGameRound, handleShowdown } = useGameRounds(tableId, { dealFlop, dealTurn, dealRiver, handleShowdown: null });
-  const { setNextPlayerToAct } = usePlayerTurns(tableId, { advanceGameRound });
+  const { handleShowdown } = useShowdown(tableId);
+  const { advanceGameRound } = useGameRounds(tableId, { dealFlop, dealTurn, dealRiver, handleShowdown });
+  const { setNextPlayerToAct } = usePlayerTurns(tableId, { advanceGameRound, handleShowdown });
   const { handleSendMessage } = useChatActions(tableId);
   const { handleLeaveTable, checkPlayerAtTable } = useTableManagement(tableId);
   const { processPlayerAction } = usePlayerActionProcessor(tableId);

@@ -1,16 +1,15 @@
 
 import { useTurnManager } from "./useTurnManager";
 import { usePokerTimer } from "./usePokerTimer";
-import { useShowdown } from "./useShowdown";
 
 interface GameRoundActions {
   advanceGameRound: (currentRound: string) => Promise<void>;
+  handleShowdown: () => Promise<void>;
 }
 
-export const usePlayerTurns = (tableId: string, { advanceGameRound }: GameRoundActions) => {
+export const usePlayerTurns = (tableId: string, { advanceGameRound, handleShowdown }: GameRoundActions) => {
   const { startTurnTimer, cancelTurnTimer, secondsLeft, isTimerRunning } = usePokerTimer(tableId);
-  const { setNextPlayerToAct } = useTurnManager({ tableId, advanceGameRound });
-  const { handleShowdown } = useShowdown(tableId);
+  const { setNextPlayerToAct } = useTurnManager({ tableId, advanceGameRound, handleShowdown });
 
   return {
     setNextPlayerToAct,

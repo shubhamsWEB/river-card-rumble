@@ -1,15 +1,14 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { useShowdown } from "./useShowdown";
 import { usePokerTimer } from "./usePokerTimer";
 
 interface TurnManagerProps {
   tableId: string;
   advanceGameRound: (currentRound: string) => Promise<void>;
+  handleShowdown: () => Promise<void>;
 }
 
-export const useTurnManager = ({ tableId, advanceGameRound }: TurnManagerProps) => {
-  const { handleShowdown } = useShowdown(tableId);
+export const useTurnManager = ({ tableId, advanceGameRound, handleShowdown }: TurnManagerProps) => {
   const { startTurnTimer, cancelTurnTimer } = usePokerTimer(tableId);
 
   const setNextPlayerToAct = async () => {
