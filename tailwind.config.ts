@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -61,6 +62,17 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				poker: {
+					'felt': '#0A5C36',
+					'felt-dark': '#074C2B',
+					'gold': '#D4AF37',
+					'chip-red': '#E53935',
+					'chip-blue': '#1E88E5',
+					'chip-green': '#43A047',
+					'chip-black': '#212121',
+					'card': '#FFFFFF',
+					'card-back': '#1565C0',
 				}
 			},
 			borderRadius: {
@@ -84,11 +96,26 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				'card-flip': {
+					'0%': { transform: 'rotateY(0deg)' },
+					'100%': { transform: 'rotateY(180deg)' }
+				},
+				'card-deal': {
+					'0%': { transform: 'translateY(-100px) translateX(-200px) rotate(-10deg)', opacity: '0' },
+					'100%': { transform: 'translateY(0) translateX(0) rotate(0)', opacity: '1' }
+				},
+				'chip-toss': {
+					'0%': { transform: 'translateY(-20px) rotate(0deg)', opacity: '0' },
+					'100%': { transform: 'translateY(0) rotate(360deg)', opacity: '1' }
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'card-flip': 'card-flip 0.5s ease-out forwards',
+				'card-deal': 'card-deal 0.3s ease-out forwards',
+				'chip-toss': 'chip-toss 0.3s ease-out forwards'
 			}
 		}
 	},
