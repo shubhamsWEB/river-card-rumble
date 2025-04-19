@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from "@/integrations/supabase/client";
+import React from 'react';
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import PlayerPosition from './PlayerPosition';
@@ -7,9 +6,10 @@ import CommunityCards from './CommunityCards';
 import ActionButtons from './ActionButtons';
 import ChatBox from './ChatBox';
 import PokerChip from './PokerChip';
-import { ChatMessage, Card as PokerCard, Player } from '../types/poker';
-import { v4 as uuidv4 } from 'uuid';
+import { Player } from '../types/poker';
 import { Loader2 } from 'lucide-react';
+import { usePokerTable } from '@/hooks/usePokerTable';
+import { useTableActions } from '@/hooks/useTableActions';
 
 interface PokerTableProps {
   tableId: string;
@@ -18,218 +18,45 @@ interface PokerTableProps {
 }
 
 const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessage }) => {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const { subscribe } = useRealtime();
   
-  const [isLoading, setIsLoading] = useState(true);
-  const [table, setTable] = useState<any>(null);
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [communityCards, setCommunityCards] = useState<PokerCard[]>([]);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
-  
-  useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      try {
-        const { data: tableData, error: tableError } = await supabase
-          .from('poker_tables')
-          .select('*')
-          .eq('id', tableId)
-          .single();
-        
-        if (tableError) throw tableError;
-        setTable(tableData);
-        
-        await loadPlayers();
-        
-        await loadCommunityCards();
-        
-        await loadChatMessages();
-        
-        const unsubscribe = subscribe(tableId, handleRealtimeUpdate);
-        
-        return () => {
-          unsubscribe();
-        };
-      } catch (error) {
-        console.error('Error loading table data:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    loadData();
-  }, [tableId]);
-  
-  useEffect(() => {
-    if (players.length > 0 && user) {
-      const currentPlayerData = players.find(p => p.id === user.id);
-      setCurrentPlayer(currentPlayerData || null);
-    }
-  }, [players, user]);
-  
-  const loadPlayers = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('table_players')
-        .select(`
-          id,
-          user_id,
-          position,
-          chips,
-          current_bet,
-          is_active,
-          is_dealer,
-          is_small_blind,
-          is_big_blind,
-          is_turn,
-          is_folded,
-          is_all_in,
-          cards,
-          profiles:user_id(username, avatar_url)
-        `)
-        .eq('table_id', tableId);
-      
-      if (error) throw error;
-      
-      const formattedPlayers = (data || []).map(item => {
-        let playerCards: PokerCard[] = [];
-        if (item.cards && Array.isArray(item.cards)) {
-          playerCards = item.cards.map((card: any) => ({
-            suit: card.suit,
-            rank: card.rank,
-            faceUp: Boolean(card.faceUp)
-          }));
-        }
+  const {
+    isLoading,
+    table,
+    players,
+    communityCards,
+    chatMessages,
+    reloadPlayers,
+    reloadCommunityCards,
+    reloadChatMessages
+  } = usePokerTable(tableId);
 
-        return {
-          id: item.user_id,
-          name: item.profiles?.username || 'Unknown',
-          position: item.position,
-          chips: item.chips,
-          cards: playerCards,
-          isActive: item.is_active,
-          isTurn: item.is_turn,
-          isFolded: item.is_folded,
-          isAllIn: item.is_all_in,
-          isDealer: item.is_dealer,
-          isSmallBlind: item.is_small_blind,
-          isBigBlind: item.is_big_blind,
-          currentBet: item.current_bet,
-          avatar: item.profiles?.avatar_url || undefined
-        };
-      });
-      
-      setPlayers(formattedPlayers);
-    } catch (error) {
-      console.error('Error loading players:', error);
-    }
-  };
+  const { handlePlayerAction, handleSendMessage } = useTableActions(tableId);
   
-  const loadCommunityCards = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('community_cards')
-        .select('*')
-        .eq('table_id', tableId)
-        .order('card_index', { ascending: true });
-      
-      if (error) throw error;
-      
-      const cards = (data || []).map(card => ({
-        suit: card.suit as 'hearts' | 'diamonds' | 'clubs' | 'spades',
-        rank: card.rank as '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A',
-        faceUp: true
-      }));
-      
-      const allCards: PokerCard[] = Array(5).fill(null).map((_, i) => {
-        return cards[i] || { suit: 'spades' as const, rank: 'A' as const, faceUp: false };
-      });
-      
-      setCommunityCards(allCards);
-    } catch (error) {
-      console.error('Error loading community cards:', error);
-    }
-  };
+  const currentPlayer = players.find(p => p.id === user?.id) || null;
   
-  const loadChatMessages = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('chat_messages')
-        .select(`
-          id,
-          user_id,
-          message,
-          created_at,
-          profiles:user_id(username)
-        `)
-        .eq('table_id', tableId)
-        .order('created_at', { ascending: true })
-        .limit(50);
-      
-      if (error) throw error;
-      
-      const messages: ChatMessage[] = (data || []).map(msg => ({
-        id: msg.id,
-        playerId: msg.user_id,
-        playerName: msg.profiles?.username || 'Unknown',
-        message: msg.message,
-        timestamp: new Date(msg.created_at).getTime()
-      }));
-      
-      setChatMessages(messages);
-    } catch (error) {
-      console.error('Error loading chat messages:', error);
-    }
-  };
-  
-  const handleRealtimeUpdate = async (update: any) => {
-    switch (update.type) {
-      case 'table':
-        setTable(update.payload.new);
-        break;
-        
-      case 'player':
-        await loadPlayers();
-        break;
-        
-      case 'card':
-        await loadCommunityCards();
-        break;
-        
-      case 'chat':
-        if (update.payload.eventType === 'INSERT') {
-          const { data, error } = await supabase
-            .from('chat_messages')
-            .select(`
-              id,
-              user_id,
-              message,
-              created_at,
-              profiles:user_id(username)
-            `)
-            .eq('id', update.payload.new.id)
-            .single();
-          
-          if (!error && data) {
-            const newMessage: ChatMessage = {
-              id: data.id,
-              playerId: data.user_id,
-              playerName: data.profiles?.username || 'Unknown',
-              message: data.message,
-              timestamp: new Date(data.created_at).getTime()
-            };
-            
-            setChatMessages(prev => [...prev, newMessage]);
+  React.useEffect(() => {
+    const unsubscribe = subscribe(tableId, async (update: any) => {
+      switch (update.type) {
+        case 'player':
+          await reloadPlayers();
+          break;
+        case 'card':
+          await reloadCommunityCards();
+          break;
+        case 'chat':
+          if (update.payload.eventType === 'INSERT') {
+            await reloadChatMessages();
           }
-        }
-        break;
-        
-      case 'action':
-        break;
-    }
-  };
+          break;
+      }
+    });
+    
+    return () => {
+      unsubscribe();
+    };
+  }, [tableId]);
   
   const getPlayerPositionStyle = (position: number) => {
     const totalPositions = 10;
@@ -248,11 +75,7 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
       transform: 'translate(-50%, -50%)'
     };
   };
-  
-  const handleSendMessage = (message: string) => {
-    onSendMessage(message);
-  };
-  
+
   if (isLoading || !table) {
     return (
       <div className="w-full h-[calc(100vh-100px)] flex items-center justify-center bg-gray-900">
@@ -302,7 +125,7 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
               currentBet={table.current_bet}
               pot={table.pot}
               playerChips={currentPlayer.chips}
-              onAction={onAction}
+              onAction={handlePlayerAction}
             />
           </div>
         )}

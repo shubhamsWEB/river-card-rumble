@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -8,9 +8,10 @@ import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import TablesList from "@/components/TablesList";
 import PokerTable from "@/components/PokerTable";
+import TableHeader from "@/components/poker/TableHeader";
 import { useAuth } from "@/contexts/AuthContext";
-import { DbPokerTable, ChatMessage, Player } from "@/types/poker";
-import { Loader2, Users, LogOut } from "lucide-react";
+import { DbPokerTable } from "@/types/poker";
+import { Loader2, Users } from "lucide-react";
 
 const Index = () => {
   const { user, profile, signOut } = useAuth();
@@ -47,7 +48,13 @@ const Index = () => {
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      setTables(data || []);
+      
+      const typedTables = (data || []).map(table => ({
+        ...table,
+        status: table.status as "waiting" | "playing" | "finished"
+      }));
+      
+      setTables(typedTables);
     } catch (error: any) {
       console.error('Error fetching tables:', error);
       toast({
@@ -306,20 +313,7 @@ const Index = () => {
   if (isInGame && currentTableId) {
     return (
       <div className="min-h-screen bg-gray-900 flex flex-col">
-        <header className="bg-gray-800 p-4 flex items-center justify-between">
-          <h1 className="text-white font-bold text-xl">River Card Rumble</h1>
-          <div className="flex items-center gap-4">
-            <div className="bg-gray-700 px-3 py-1.5 rounded-md flex items-center gap-2">
-              <span className="text-poker-gold font-medium">${profile?.chips || 0}</span>
-              <span className="text-white">chips</span>
-            </div>
-            <Button variant="outline" onClick={handleLeaveTable}>
-              <LogOut className="mr-2 h-4 w-4" />
-              Leave Table
-            </Button>
-          </div>
-        </header>
-        
+        <TableHeader onLeaveTable={handleLeaveTable} />
         <main className="flex-grow">
           <PokerTable 
             tableId={currentTableId} 
