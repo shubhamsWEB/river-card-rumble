@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +13,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { DbPokerTable } from "@/types/poker";
 import { Loader2, Users, LogOut } from "lucide-react";
 
-// Define missing interfaces
 interface ChatMessage {
   id: string;
   playerId: string;
@@ -68,6 +66,9 @@ const Index = () => {
   const [maxBuyIn, setMaxBuyIn] = useState<number>(2000);
   const [maxPlayers, setMaxPlayers] = useState<number>(9);
   
+  const [availablePositions, setAvailablePositions] = useState<number[]>([]);
+  const [selectedPosition, setSelectedPosition] = useState<number | null>(null);
+
   useEffect(() => {
     fetchTables();
   }, []);
@@ -100,18 +101,30 @@ const Index = () => {
     }
   };
   
-  const handleJoinTable = (tableId: string) => {
+  const handleJoinTable = async (tableId: string) => {
     setSelectedTableId(tableId);
     setShowJoinDialog(true);
     
     const table = tables.find(t => t.id === tableId);
     if (table) {
       setBuyInAmount(table.min_buy_in);
+      
+      const { data: existingPlayers } = await supabase
+        .from('table_players')
+        .select('position')
+        .eq('table_id', tableId);
+      
+      const takenPositions = new Set(existingPlayers?.map(p => p.position) || []);
+      const availablePos = Array.from({length: table.max_players}, (_, i) => i)
+        .filter(pos => !takenPositions.has(pos));
+      
+      setAvailablePositions(availablePos);
+      setSelectedPosition(availablePos[0] || null);
     }
   };
   
   const handleSubmitJoin = async () => {
-    if (!selectedTableId || !user) return;
+    if (!selectedTableId || !user || selectedPosition === null) return;
     
     const table = tables.find(t => t.id === selectedTableId);
     if (!table) return;
@@ -136,35 +149,12 @@ const Index = () => {
     
     setIsLoading(true);
     try {
-      const { data: existingPlayers, error: playersError } = await supabase
-        .from('table_players')
-        .select('position')
-        .eq('table_id', selectedTableId);
-      
-      if (playersError) throw playersError;
-      
-      const takenPositions = new Set(existingPlayers?.map(p => p.position) || []);
-      let position = 0;
-      while (takenPositions.has(position) && position < table.max_players) {
-        position++;
-      }
-      
-      if (position >= table.max_players) {
-        toast({
-          title: "Table is full",
-          description: "There are no available seats at this table",
-          variant: "destructive"
-        });
-        setShowJoinDialog(false);
-        return;
-      }
-      
       const { error: joinError } = await supabase
         .from('table_players')
         .insert({
           table_id: selectedTableId,
           user_id: user.id,
-          position,
+          position: selectedPosition,
           chips: buyInAmount,
           cards: null
         });
@@ -499,11 +489,26 @@ const Index = () => {
           <DialogHeader>
             <DialogTitle>Join Table</DialogTitle>
             <DialogDescription>
-              Enter your buy-in amount to join this poker table.
+              Select a position and enter your buy-in amount to join this poker table.
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm">Select Position</label>
+              <select
+                className="w-full p-2 border rounded-md bg-background"
+                value={selectedPosition || ''}
+                onChange={(e) => setSelectedPosition(Number(e.target.value))}
+              >
+                {availablePositions.map((pos) => (
+                  <option key={pos} value={pos}>
+                    Seat {pos + 1}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
             <div className="space-y-2">
               <label className="text-sm">Buy-in Amount</label>
               <Input
@@ -534,7 +539,7 @@ const Index = () => {
             </Button>
             <Button 
               onClick={handleSubmitJoin} 
-              disabled={isLoading || (profile ? buyInAmount > profile.chips : false)}
+              disabled={isLoading || (profile ? buyInAmount > profile.chips : false) || selectedPosition === null}
             >
               {isLoading ? (
                 <>

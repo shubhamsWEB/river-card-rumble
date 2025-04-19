@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { DbPokerTable, Card, ChatMessage } from '../types/poker';
@@ -22,7 +21,6 @@ export const usePokerTable = (tableId: string) => {
       
       if (tableError) throw tableError;
       
-      // Ensure the status is of the correct type
       const typedTableData: DbPokerTable = {
         ...tableData,
         status: tableData.status as "waiting" | "playing" | "finished",
@@ -72,15 +70,13 @@ export const usePokerTable = (tableId: string) => {
       if (error) throw error;
       
       const formattedPlayers = (data || []).map(item => {
-        // Make sure we safely access profile data
-        const username = item.profiles?.username || 'Unknown';
-        const avatar = item.profiles?.avatar_url || null;
+        const profile = item.profiles as any;
+        const username = profile?.username || 'Unknown';
+        const avatar = profile?.avatar_url || null;
         
-        // Safe type conversion for cards
         let playerCards: Card[] = [];
         if (item.cards) {
           try {
-            // Cast cards to the expected type
             playerCards = (item.cards as any[]).map(card => ({
               suit: card.suit as 'hearts' | 'diamonds' | 'clubs' | 'spades',
               rank: card.rank as '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A',
@@ -160,8 +156,8 @@ export const usePokerTable = (tableId: string) => {
       if (error) throw error;
       
       const messages: ChatMessage[] = (data || []).map(msg => {
-        // Safely access the username
-        const username = msg.profiles?.username || 'Unknown';
+        const profile = msg.profiles as any;
+        const username = profile?.username || 'Unknown';
         
         return {
           id: msg.id,

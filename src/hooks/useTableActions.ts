@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -57,8 +56,53 @@ export const useTableActions = (tableId: string) => {
     }
   };
 
+  const handleLeaveTable = async () => {
+    try {
+      if (!user) {
+        throw new Error("You must be logged in to leave the table");
+      }
+      
+      const { data: playerData, error: playerError } = await supabase
+        .from('table_players')
+        .select('chips')
+        .eq('table_id', tableId)
+        .eq('user_id', user.id)
+        .single();
+      
+      if (playerError) throw playerError;
+      
+      const currentChips = playerData?.chips || 0;
+      
+      const { error: leaveError } = await supabase
+        .from('table_players')
+        .delete()
+        .eq('table_id', tableId)
+        .eq('user_id', user.id);
+      
+      if (leaveError) throw leaveError;
+      
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ chips: currentChips })
+        .eq('id', user.id);
+      
+      if (updateError) throw updateError;
+      
+      return { success: true, chips: currentChips };
+    } catch (error: any) {
+      console.error('Error leaving table:', error);
+      toast({
+        title: "Failed to leave table",
+        description: error.message,
+        variant: "destructive"
+      });
+      return { success: false, error };
+    }
+  };
+
   return {
     handleSendMessage,
-    handlePlayerAction
+    handlePlayerAction,
+    handleLeaveTable
   };
 };
