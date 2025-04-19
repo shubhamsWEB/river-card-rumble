@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, Rank, Suit } from "@/types/poker";
 
 export const useCardDealing = (tableId: string) => {
-  const dealCommunityCards = (count: number): Card[] => {
+  const createDeck = (): Card[] => {
     const suits: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
     const ranks: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
     
@@ -22,6 +22,13 @@ export const useCardDealing = (tableId: string) => {
       [deck[i], deck[j]] = [deck[j], deck[i]];
     }
     
+    return deck;
+  };
+
+  const dealCommunityCards = (count: number): Card[] => {
+    // Create and shuffle a deck
+    const deck = createDeck();
+    
     // Return the requested number of cards
     return deck.slice(0, count);
   };
@@ -39,6 +46,7 @@ export const useCardDealing = (tableId: string) => {
 
   const dealFlop = async () => {
     try {
+      console.log("Dealing flop...");
       const cards = dealCommunityCards(3);
       
       for (let i = 0; i < 3; i++) {
@@ -58,6 +66,7 @@ export const useCardDealing = (tableId: string) => {
 
   const dealTurn = async () => {
     try {
+      console.log("Dealing turn...");
       const cards = dealCommunityCards(1);
       
       await supabase
@@ -75,6 +84,7 @@ export const useCardDealing = (tableId: string) => {
 
   const dealRiver = async () => {
     try {
+      console.log("Dealing river...");
       const cards = dealCommunityCards(1);
       
       await supabase

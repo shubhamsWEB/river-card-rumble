@@ -1,42 +1,50 @@
-
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
+import { Card, Rank, Suit } from "@/types/poker";
 
-// This type allows for string parameters
-export interface RpcCallParams {
-  [key: string]: any;
-}
-
-export const useRpcFunctions = () => {
-  const { user } = useAuth();
-
-  const callRpcFunction = async (functionName: string, params: RpcCallParams = {}) => {
-    if (!user) {
-      throw new Error('User not authenticated');
+export const useRpcFunctions = (tableId: string) => {
+  const createDeck = (): Card[] => {
+    const suits: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
+    const ranks: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+    
+    // Create deck
+    const deck: Card[] = [];
+    
+    for (const suit of suits) {
+      for (const rank of ranks) {
+        deck.push({ suit, rank, faceUp: true });
+      }
     }
-
-    try {
-      const { data, error } = await supabase.rpc(functionName, params);
-      
-      if (error) throw error;
-      
-      return { data, error: null };
-    } catch (error: any) {
-      console.error(`Error calling RPC function ${functionName}:`, error);
-      return { data: null, error: error.message || 'Unknown error' };
+    
+    // Shuffle deck
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
     }
+    
+    return deck;
   };
 
-  // Add back the specific function for adding chips for backwards compatibility
-  const addChipsToProfile = async (userId: string, amount: number) => {
-    return callRpcFunction('add_chips', {
-      p_user_id: userId,
-      p_amount: amount
-    });
+  const dealCards = (playerPosition: number): Card[] => {
+    // Create and shuffle a deck
+    const deck = createDeck();
+    
+    // Return two cards for the player
+    return [
+      { ...deck[0], faceUp: false },
+      { ...deck[1], faceUp: false }
+    ];
   };
 
-  return { 
-    callRpcFunction,
-    addChipsToProfile
+  const dealCommunityCards = (count: number): Card[] => {
+    // Create and shuffle a deck
+    const deck = createDeck();
+    
+    // Return the requested number of cards
+    return deck.slice(0, count);
+  };
+
+  return {
+    dealCards,
+    dealCommunityCards
   };
 };

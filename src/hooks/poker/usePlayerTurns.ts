@@ -1,5 +1,4 @@
 
-import { usePokerTimer } from "./usePokerTimer";
 import { supabase } from "@/integrations/supabase/client";
 
 interface GameRoundActions {
@@ -8,16 +7,8 @@ interface GameRoundActions {
 }
 
 export const usePlayerTurns = (tableId: string, { advanceGameRound, handleShowdown }: GameRoundActions) => {
-  const { 
-    startTurnTimer, 
-    cancelTurnTimer
-  } = usePokerTimer(tableId);
-
   const setNextPlayerToAct = async () => {
     try {
-      // Cancel the current turn timer when moving to next player
-      cancelTurnTimer();
-      
       const { data: tableData, error: tableError } = await supabase
         .from('poker_tables')
         .select('current_dealer_position, active_position, current_round, current_bet')
@@ -26,7 +17,7 @@ export const usePlayerTurns = (tableId: string, { advanceGameRound, handleShowdo
       
       if (tableError) throw tableError;
       
-      // Get all non-folded players in position order
+      // Get all players in position order
       const { data: players, error: playersError } = await supabase
         .from('table_players')
         .select('user_id, position, is_all_in, is_folded, current_bet')
@@ -46,6 +37,22 @@ export const usePlayerTurns = (tableId: string, { advanceGameRound, handleShowdo
         return;
       }
 
+      // Check if betting round is complete (all active players have equal bets)
+      const allPlayersEqualBet = activePlayers.every(p => p.current_bet === tableData.current_bet);
+      
+      // If all players have equal bets and everyone has acted, the round is complete
+      if (allPlayersEqualBet) {
+        const allPlayersActed = activePlayers.every(p => p.current_bet === tableData.current_bet);
+        
+        if (allPlayersActed) {
+          console.log("All players have acted with equal bets, advancing to next round");
+          if (tableData.current_round) {
+            await advanceGameRound(tableData.current_round);
+            return;
+          }
+        }
+      }
+
       // Find current active player index
       let currentActiveIndex = -1;
       if (tableData.active_position !== null) {
@@ -58,17 +65,6 @@ export const usePlayerTurns = (tableId: string, { advanceGameRound, handleShowdo
         : currentActiveIndex + 1;
       
       const nextPlayer = activePlayers[nextPlayerIndex];
-
-      // Check if betting round is complete
-      const allPlayersActed = activePlayers.every(p => p.current_bet === tableData.current_bet || p.is_all_in);
-      
-      // If everyone has acted and bets are equal, advance to next round
-      if (allPlayersActed && nextPlayerIndex === 0) {
-        if (tableData.current_round) {
-          await advanceGameRound(tableData.current_round);
-          return;
-        }
-      }
 
       // Update turn status for all players
       await supabase
@@ -88,18 +84,15 @@ export const usePlayerTurns = (tableId: string, { advanceGameRound, handleShowdo
         .from('poker_tables')
         .update({ active_position: nextPlayer.position })
         .eq('id', tableId);
-        
-      // Start timer for the new active player
-      startTurnTimer();
       
+      console.log(`Turn moved to player at position ${nextPlayer.position}`);
+        
     } catch (error) {
       console.error('Error setting next player to act:', error);
     }
   };
 
   return {
-    setNextPlayerToAct,
-    startTurnTimer,
-    cancelTurnTimer
+    setNextPlayerToAct
   };
 };

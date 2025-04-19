@@ -17,14 +17,17 @@ export const useGameRounds = (tableId: string, actions: CardDealingActions) => {
       switch (currentRound) {
         case 'preflop':
           nextRound = 'flop';
+          // Deal the flop (3 cards) when advancing from preflop to flop
           await actions.dealFlop();
           break;
         case 'flop':
           nextRound = 'turn';
+          // Deal the turn card (1 card) when advancing from flop to turn
           await actions.dealTurn();
           break;
         case 'turn':
           nextRound = 'river';
+          // Deal the river card (1 card) when advancing from turn to river
           await actions.dealRiver();
           break;
         case 'river':
