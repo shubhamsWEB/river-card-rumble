@@ -7,7 +7,7 @@ import CommunityCards from './CommunityCards';
 import ActionButtons from './ActionButtons';
 import ChatBox from './ChatBox';
 import PokerChip from './PokerChip';
-import { ChatMessage, Card, Player } from '../types/poker';
+import { ChatMessage, Card as PokerCard, Player } from '../types/poker';
 import { v4 as uuidv4 } from 'uuid';
 import { Loader2 } from 'lucide-react';
 
@@ -24,16 +24,14 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
   const [isLoading, setIsLoading] = useState(true);
   const [table, setTable] = useState<any>(null);
   const [players, setPlayers] = useState<Player[]>([]);
-  const [communityCards, setCommunityCards] = useState<Card[]>([]);
+  const [communityCards, setCommunityCards] = useState<PokerCard[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   
-  // Load initial data and subscribe to changes
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        // Load table data
         const { data: tableData, error: tableError } = await supabase
           .from('poker_tables')
           .select('*')
@@ -43,16 +41,12 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
         if (tableError) throw tableError;
         setTable(tableData);
         
-        // Load players
         await loadPlayers();
         
-        // Load community cards
         await loadCommunityCards();
         
-        // Load chat messages
         await loadChatMessages();
         
-        // Subscribe to real-time updates
         const unsubscribe = subscribe(tableId, handleRealtimeUpdate);
         
         return () => {
@@ -68,7 +62,6 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
     loadData();
   }, [tableId]);
   
-  // Keep track of current player
   useEffect(() => {
     if (players.length > 0 && user) {
       const currentPlayerData = players.find(p => p.id === user.id);
@@ -100,22 +93,33 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
       
       if (error) throw error;
       
-      const formattedPlayers = (data || []).map(item => ({
-        id: item.user_id,
-        name: item.profiles.username,
-        position: item.position,
-        chips: item.chips,
-        cards: (item.cards as Card[]) || [],
-        isActive: item.is_active,
-        isTurn: item.is_turn,
-        isFolded: item.is_folded,
-        isAllIn: item.is_all_in,
-        isDealer: item.is_dealer,
-        isSmallBlind: item.is_small_blind,
-        isBigBlind: item.is_big_blind,
-        currentBet: item.current_bet,
-        avatar: item.profiles.avatar_url || undefined
-      }));
+      const formattedPlayers = (data || []).map(item => {
+        let playerCards: PokerCard[] = [];
+        if (item.cards && Array.isArray(item.cards)) {
+          playerCards = item.cards.map((card: any) => ({
+            suit: card.suit,
+            rank: card.rank,
+            faceUp: Boolean(card.faceUp)
+          }));
+        }
+
+        return {
+          id: item.user_id,
+          name: item.profiles?.username || 'Unknown',
+          position: item.position,
+          chips: item.chips,
+          cards: playerCards,
+          isActive: item.is_active,
+          isTurn: item.is_turn,
+          isFolded: item.is_folded,
+          isAllIn: item.is_all_in,
+          isDealer: item.is_dealer,
+          isSmallBlind: item.is_small_blind,
+          isBigBlind: item.is_big_blind,
+          currentBet: item.current_bet,
+          avatar: item.profiles?.avatar_url || undefined
+        };
+      });
       
       setPlayers(formattedPlayers);
     } catch (error) {
@@ -134,14 +138,13 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
       if (error) throw error;
       
       const cards = (data || []).map(card => ({
-        suit: card.suit,
-        rank: card.rank,
+        suit: card.suit as 'hearts' | 'diamonds' | 'clubs' | 'spades',
+        rank: card.rank as '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A',
         faceUp: true
       }));
       
-      // Ensure we have 5 cards (some may be face down)
-      const allCards: Card[] = Array(5).fill(null).map((_, i) => {
-        return cards[i] || { suit: 'spades', rank: 'A', faceUp: false };
+      const allCards: PokerCard[] = Array(5).fill(null).map((_, i) => {
+        return cards[i] || { suit: 'spades' as const, rank: 'A' as const, faceUp: false };
       });
       
       setCommunityCards(allCards);
@@ -170,7 +173,7 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
       const messages: ChatMessage[] = (data || []).map(msg => ({
         id: msg.id,
         playerId: msg.user_id,
-        playerName: msg.profiles.username,
+        playerName: msg.profiles?.username || 'Unknown',
         message: msg.message,
         timestamp: new Date(msg.created_at).getTime()
       }));
@@ -182,25 +185,21 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
   };
   
   const handleRealtimeUpdate = async (update: any) => {
-    // Process updates based on type
     switch (update.type) {
       case 'table':
         setTable(update.payload.new);
         break;
         
       case 'player':
-        // Refresh players when any player data changes
         await loadPlayers();
         break;
         
       case 'card':
-        // Refresh community cards when they change
         await loadCommunityCards();
         break;
         
       case 'chat':
         if (update.payload.eventType === 'INSERT') {
-          // Load the new chat message
           const { data, error } = await supabase
             .from('chat_messages')
             .select(`
@@ -217,7 +216,7 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
             const newMessage: ChatMessage = {
               id: data.id,
               playerId: data.user_id,
-              playerName: data.profiles.username,
+              playerName: data.profiles?.username || 'Unknown',
               message: data.message,
               timestamp: new Date(data.created_at).getTime()
             };
@@ -228,22 +227,17 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
         break;
         
       case 'action':
-        // Actions are handled by the server and result in updates to the table/player state
         break;
     }
   };
   
-  // Position players around the table
   const getPlayerPositionStyle = (position: number) => {
-    // Calculate position around an oval table
-    const totalPositions = 10; // 0-9 positions available
+    const totalPositions = 10;
     const angle = (position / totalPositions) * 2 * Math.PI;
     
-    // Oval parameters (adjust these to change the table shape)
-    const radiusX = 42; // horizontal radius in percentage
-    const radiusY = 30; // vertical radius in percentage
+    const radiusX = 42;
+    const radiusY = 30;
     
-    // Calculate x and y coordinates
     const x = 50 + radiusX * Math.sin(angle);
     const y = 50 + radiusY * Math.cos(angle);
     
@@ -255,7 +249,6 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
     };
   };
   
-  // Handle sending chat messages
   const handleSendMessage = (message: string) => {
     onSendMessage(message);
   };
@@ -273,9 +266,7 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
 
   return (
     <div className="relative w-full h-[calc(100vh-100px)] poker-table rounded-full overflow-hidden">
-      {/* Table felt */}
       <div className="absolute inset-0 flex items-center justify-center">
-        {/* Community cards and pot */}
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
           <CommunityCards cards={communityCards} round={table.current_round} />
           
@@ -296,7 +287,6 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
           )}
         </div>
         
-        {/* Players positioned around the table */}
         {players.map(player => (
           <div key={player.id} style={getPlayerPositionStyle(player.position)}>
             <PlayerPosition 
@@ -306,7 +296,6 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
           </div>
         ))}
         
-        {/* Action buttons - only show if it's the current user's turn */}
         {currentPlayer?.isTurn && (
           <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2">
             <ActionButtons
@@ -318,7 +307,6 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
           </div>
         )}
         
-        {/* Game info */}
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 px-4 py-1 rounded-full">
           <div className="text-white text-sm">
             <span className="mr-3">Small Blind: ${table.small_blind}</span>
@@ -327,7 +315,6 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
           </div>
         </div>
         
-        {/* Chat box */}
         <div className="absolute bottom-4 right-4 w-64">
           <ChatBox 
             messages={chatMessages} 

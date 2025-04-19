@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import TablesList from "@/components/TablesList";
 import PokerTable from "@/components/PokerTable";
 import { useAuth } from "@/contexts/AuthContext";
-import { DbPokerTable, ChatMessage, Player, Card } from "@/types/poker";
+import { DbPokerTable, ChatMessage, Player } from "@/types/poker";
 import { Loader2, Users, LogOut } from "lucide-react";
 
 const Index = () => {
@@ -28,7 +27,6 @@ const Index = () => {
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   
-  // Form states for creating a table
   const [tableName, setTableName] = useState<string>("");
   const [smallBlind, setSmallBlind] = useState<number>(5);
   const [bigBlind, setBigBlind] = useState<number>(10);
@@ -37,7 +35,6 @@ const Index = () => {
   const [maxPlayers, setMaxPlayers] = useState<number>(9);
   
   useEffect(() => {
-    // Load available tables
     fetchTables();
   }, []);
   
@@ -67,7 +64,6 @@ const Index = () => {
     setSelectedTableId(tableId);
     setShowJoinDialog(true);
     
-    // Set default buy-in to minimum for this table
     const table = tables.find(t => t.id === tableId);
     if (table) {
       setBuyInAmount(table.min_buy_in);
@@ -80,7 +76,6 @@ const Index = () => {
     const table = tables.find(t => t.id === selectedTableId);
     if (!table) return;
     
-    // Validate buy-in amount
     if (buyInAmount < table.min_buy_in || buyInAmount > table.max_buy_in) {
       toast({
         title: "Invalid buy-in amount",
@@ -90,7 +85,6 @@ const Index = () => {
       return;
     }
     
-    // Check if player has enough chips
     if (profile && buyInAmount > profile.chips) {
       toast({
         title: "Insufficient chips",
@@ -102,7 +96,6 @@ const Index = () => {
     
     setIsLoading(true);
     try {
-      // Find an available position at the table
       const { data: existingPlayers, error: playersError } = await supabase
         .from('table_players')
         .select('position')
@@ -110,7 +103,6 @@ const Index = () => {
       
       if (playersError) throw playersError;
       
-      // Find first available position
       const takenPositions = new Set(existingPlayers?.map(p => p.position) || []);
       let position = 0;
       while (takenPositions.has(position) && position < table.max_players) {
@@ -127,7 +119,6 @@ const Index = () => {
         return;
       }
       
-      // Insert player at the table
       const { error: joinError } = await supabase
         .from('table_players')
         .insert({
@@ -140,7 +131,6 @@ const Index = () => {
       
       if (joinError) throw joinError;
       
-      // Update user's chip balance
       if (profile) {
         const { error: updateError } = await supabase
           .from('profiles')
@@ -150,7 +140,6 @@ const Index = () => {
         if (updateError) throw updateError;
       }
       
-      // Join successful
       setCurrentTableId(selectedTableId);
       setIsInGame(true);
       setShowJoinDialog(false);
@@ -175,7 +164,6 @@ const Index = () => {
     if (!currentTableId || !user) return;
     
     try {
-      // Get player's current chips
       const { data: playerData, error: playerError } = await supabase
         .from('table_players')
         .select('chips')
@@ -187,7 +175,6 @@ const Index = () => {
       
       const currentChips = playerData?.chips || 0;
       
-      // Remove player from table
       const { error: leaveError } = await supabase
         .from('table_players')
         .delete()
@@ -196,7 +183,6 @@ const Index = () => {
       
       if (leaveError) throw leaveError;
       
-      // Update user's chip balance
       if (profile && currentChips > 0) {
         const { error: updateError } = await supabase
           .from('profiles')
@@ -206,7 +192,6 @@ const Index = () => {
         if (updateError) throw updateError;
       }
       
-      // Leave successful
       setIsInGame(false);
       setCurrentTableId(null);
       
@@ -236,7 +221,6 @@ const Index = () => {
     
     setIsLoading(true);
     try {
-      // Create new table
       const { data, error } = await supabase
         .from('poker_tables')
         .insert({
@@ -252,7 +236,6 @@ const Index = () => {
       
       if (error) throw error;
       
-      // Auto-join the table
       setSelectedTableId(data.id);
       setBuyInAmount(minBuyIn);
       handleSubmitJoin();
