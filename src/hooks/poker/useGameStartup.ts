@@ -41,27 +41,46 @@ export const useGameStartup = (tableId: string) => {
     }
   };
 
-  const dealCards = (): Card[] => {
+  // Create a seeded random number generator to ensure consistent cards
+  const seedRandom = (seed: string) => {
+    const hashCode = (str: string) => {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+      }
+      return Math.abs(hash);
+    };
+    
+    const seedValue = hashCode(seed);
+    let state = seedValue;
+    
+    return () => {
+      state = (state * 1664525 + 1013904223) % 2147483648;
+      return state / 2147483648;
+    };
+  };
+
+  const dealCards = (playerPosition: number, tableId: string): Card[] => {
     const suits: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
     const ranks: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
     
-    // Create deck
-    const deck: Card[] = [];
+    // Create a seeded random generator based on player position and table ID
+    // This ensures the same player gets the same cards if the game is reloaded
+    const random = seedRandom(`${tableId}-${playerPosition}`);
     
-    for (const suit of suits) {
-      for (const rank of ranks) {
-        deck.push({ suit, rank, faceUp: false });
-      }
-    }
+    // Select two cards with the seeded random generator
+    const card1Suit = suits[Math.floor(random() * suits.length)];
+    const card1Rank = ranks[Math.floor(random() * ranks.length)];
     
-    // Shuffle deck
-    for (let i = deck.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [deck[i], deck[j]] = [deck[j], deck[i]];
-    }
+    const card2Suit = suits[Math.floor(random() * suits.length)];
+    const card2Rank = ranks[Math.floor(random() * ranks.length)];
     
-    // Deal two cards
-    return [deck[0], deck[1]];
+    return [
+      { suit: card1Suit, rank: card1Rank, faceUp: false },
+      { suit: card2Suit, rank: card2Rank, faceUp: false }
+    ];
   };
 
   const startGame = async () => {
@@ -143,10 +162,10 @@ export const useGameStartup = (tableId: string) => {
         
         if (!playerData) continue;
         
-        // Deal two random cards to the player
-        const cards = dealCards();
+        // Deal two cards to the player using their position for consistency
+        const cards = dealCards(player.position, tableId);
         
-        // Serialize cards for JSON storage - cast to a type that Supabase can handle
+        // Serialize cards for JSON storage
         const serializableCards = cards.map(card => ({
           suit: card.suit,
           rank: card.rank,

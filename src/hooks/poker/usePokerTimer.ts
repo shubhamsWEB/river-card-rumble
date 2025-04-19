@@ -2,9 +2,9 @@
 import { supabase } from "@/integrations/supabase/client";
 
 export const usePokerTimer = (tableId: string) => {
+  // Simple placeholder functions without actual timer functionality
   const startTurnTimer = async () => {
     try {
-      // Get current player whose turn it is
       const { data: playerData } = await supabase
         .from('table_players')
         .select('user_id')
