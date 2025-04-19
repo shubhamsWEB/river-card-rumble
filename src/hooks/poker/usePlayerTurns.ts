@@ -1,4 +1,3 @@
-
 import { usePokerTimer } from "./usePokerTimer";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -11,9 +10,7 @@ export const usePlayerTurns = (tableId: string, { advanceGameRound, handleShowdo
   // Initialize the timer directly in this hook instead of passing through useTurnManager
   const { 
     startTurnTimer, 
-    cancelTurnTimer, 
-    secondsLeft, 
-    isTimerRunning 
+    cancelTurnTimer
   } = usePokerTimer(tableId);
 
   const setNextPlayerToAct = async () => {
@@ -110,8 +107,6 @@ export const usePlayerTurns = (tableId: string, { advanceGameRound, handleShowdo
     setNextPlayerToAct,
     startTurnTimer,
     cancelTurnTimer,
-    secondsLeft,
-    isTimerRunning,
     handleShowdown
   };
 };
