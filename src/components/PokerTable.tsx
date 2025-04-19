@@ -2,6 +2,7 @@
 import React, { useEffect } from 'react';
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 import PlayerPosition from './PlayerPosition';
 import CommunityCards from './CommunityCards';
 import ActionButtons from './ActionButtons';
@@ -21,6 +22,7 @@ interface PokerTableProps {
 const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessage }) => {
   const { user } = useAuth();
   const { subscribe } = useRealtime();
+  const navigate = useNavigate();
   
   const {
     isLoading,
@@ -34,19 +36,14 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
     reloadTable
   } = usePokerTable(tableId);
 
-  const { 
-    handlePlayerAction, 
-    handleSendMessage, 
-    checkAndStartGame,
-    advanceGameRound
-  } = useTableActions(tableId);
+  const tableActions = useTableActions(tableId);
   
   const currentPlayer = players.find(p => p.id === user?.id) || null;
   
   // Check if game should start when players change
   useEffect(() => {
     if (players.length >= 2 && table?.status === 'waiting') {
-      checkAndStartGame();
+      tableActions.checkAndStartGame();
     }
   }, [players.length, table?.status]);
 
@@ -100,11 +97,16 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
   
   const handleActionClick = (action: PlayerAction, amount?: number) => {
     console.log(`Action clicked: ${action}${amount ? ` with amount: ${amount}` : ''}`);
-    handlePlayerAction(action, amount);
+    tableActions.handlePlayerAction(action, amount);
   };
   
   const handleMessageSend = (message: string) => {
-    handleSendMessage(message);
+    tableActions.handleSendMessage(message);
+  };
+
+  const handleLeaveTable = async (): Promise<void> => {
+    await tableActions.handleLeaveTable();
+    navigate('/');
   };
 
   if (isLoading || !table) {
