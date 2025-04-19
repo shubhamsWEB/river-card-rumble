@@ -7,7 +7,7 @@ import CommunityCards from './CommunityCards';
 import ActionButtons from './ActionButtons';
 import ChatBox from './ChatBox';
 import PokerChip from './PokerChip';
-import { Player } from '../types/poker';
+import { Player, PlayerAction } from '../types/poker';
 import { Loader2 } from 'lucide-react';
 import { usePokerTable } from '@/hooks/usePokerTable';
 import { useTableActions } from '@/hooks/useTableActions';
@@ -30,7 +30,8 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
     chatMessages,
     reloadPlayers,
     reloadCommunityCards,
-    reloadChatMessages
+    reloadChatMessages,
+    reloadTable
   } = usePokerTable(tableId);
 
   const { 
@@ -52,9 +53,12 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
   // Subscribe to table updates
   useEffect(() => {
     const unsubscribe = subscribe(tableId, async (update: any) => {
+      console.log("Received update:", update);
+      
       switch (update.type) {
         case 'player':
           await reloadPlayers();
+          await reloadTable();
           break;
         case 'card':
           await reloadCommunityCards();
@@ -63,6 +67,10 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
           if (update.payload.eventType === 'INSERT') {
             await reloadChatMessages();
           }
+          break;
+        case 'action':
+          await reloadPlayers();
+          await reloadTable();
           break;
       }
     });
@@ -88,6 +96,15 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
       top: `${y}%`,
       transform: 'translate(-50%, -50%)'
     };
+  };
+  
+  const handleActionClick = (action: PlayerAction, amount?: number) => {
+    console.log(`Action clicked: ${action}${amount ? ` with amount: ${amount}` : ''}`);
+    handlePlayerAction(action, amount);
+  };
+  
+  const handleMessageSend = (message: string) => {
+    handleSendMessage(message);
   };
 
   if (isLoading || !table) {
@@ -142,7 +159,7 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
               currentBet={table.current_bet}
               pot={table.pot}
               playerChips={currentPlayer.chips}
-              onAction={handlePlayerAction}
+              onAction={handleActionClick}
             />
           </div>
         )}
@@ -159,7 +176,7 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
         <div className="absolute bottom-4 right-4 w-64">
           <ChatBox 
             messages={chatMessages} 
-            onSendMessage={handleSendMessage} 
+            onSendMessage={handleMessageSend} 
           />
         </div>
       </div>

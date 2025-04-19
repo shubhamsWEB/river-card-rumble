@@ -3,12 +3,13 @@ import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
+import { PlayerAction } from '@/types/poker';
 
 interface ActionButtonsProps {
   currentBet: number;
   pot: number;
   playerChips: number;
-  onAction: (action: string, amount?: number) => void;
+  onAction: (action: PlayerAction, amount?: number) => void;
 }
 
 const ActionButtons: React.FC<ActionButtonsProps> = ({ 
@@ -17,7 +18,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
   playerChips,
   onAction 
 }) => {
-  const [betAmount, setBetAmount] = useState<number>(currentBet * 2);
+  const [betAmount, setBetAmount] = useState<number>(currentBet > 0 ? currentBet * 2 : Math.min(20, playerChips));
   const [showBetSlider, setShowBetSlider] = useState<boolean>(false);
 
   const canCheck = currentBet === 0;
@@ -25,12 +26,14 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
   const canBet = playerChips > 0;
   const callAmount = Math.min(currentBet, playerChips);
 
+  const handleAction = (action: PlayerAction, amount?: number) => {
+    console.log(`Player action: ${action}${amount ? ` with amount: ${amount}` : ''}`);
+    onAction(action, amount);
+  };
+
   const handleBetConfirm = () => {
-    if (betAmount > currentBet) {
-      onAction('raise', betAmount);
-    } else {
-      onAction('bet', betAmount);
-    }
+    const action: PlayerAction = currentBet > 0 ? 'raise' : 'bet';
+    handleAction(action, betAmount);
     setShowBetSlider(false);
   };
 
@@ -39,7 +42,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
   };
 
   const sliderValue = [betAmount];
-  const minBet = currentBet > 0 ? currentBet * 2 : 10;
+  const minBet = currentBet > 0 ? currentBet * 2 : Math.max(10, Math.floor(playerChips * 0.05));
   const maxBet = playerChips;
 
   return (
@@ -66,6 +69,8 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
               value={betAmount} 
               onChange={(e) => setBetAmount(Math.min(Number(e.target.value), maxBet))}
               className="text-center"
+              min={minBet}
+              max={maxBet}
             />
             <div className="flex gap-1">
               <Button 
@@ -97,20 +102,20 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
               className="flex-1 bg-poker-gold hover:bg-yellow-600 text-black" 
               onClick={handleBetConfirm}
             >
-              Confirm
+              Confirm {currentBet > 0 ? 'Raise' : 'Bet'}
             </Button>
           </div>
         </div>
       ) : (
         <div className="flex flex-wrap gap-2 justify-center">
           {canCheck && (
-            <Button onClick={() => onAction('check')} variant="secondary">
+            <Button onClick={() => handleAction('check')} variant="secondary">
               Check
             </Button>
           )}
           
           {canCall && (
-            <Button onClick={() => onAction('call', callAmount)} variant="default">
+            <Button onClick={() => handleAction('call', callAmount)} variant="default">
               Call ${callAmount}
             </Button>
           )}
@@ -124,12 +129,12 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
             </Button>
           )}
           
-          <Button onClick={() => onAction('fold')} variant="destructive">
+          <Button onClick={() => handleAction('fold')} variant="destructive">
             Fold
           </Button>
           
           {playerChips > 0 && (
-            <Button onClick={() => onAction('all-in', playerChips)} variant="outline">
+            <Button onClick={() => handleAction('all-in', playerChips)} variant="outline">
               All-In ${playerChips}
             </Button>
           )}

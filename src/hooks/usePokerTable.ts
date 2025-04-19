@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
-import { DbPokerTable, Card, ChatMessage } from '../types/poker';
+import { DbPokerTable, Card, ChatMessage, SerializableCard } from '../types/poker';
 import { toast } from "@/components/ui/use-toast";
 
 export const usePokerTable = (tableId: string) => {
@@ -14,6 +14,26 @@ export const usePokerTable = (tableId: string) => {
   const loadData = async () => {
     setIsLoading(true);
     try {
+      await Promise.all([
+        loadTable(),
+        loadPlayers(),
+        loadCommunityCards(),
+        loadChatMessages()
+      ]);
+    } catch (error) {
+      console.error('Error loading table data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load table data",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadTable = async () => {
+    try {
       const { data: tableData, error: tableError } = await supabase
         .from('poker_tables')
         .select('*')
@@ -25,26 +45,16 @@ export const usePokerTable = (tableId: string) => {
       const typedTableData: DbPokerTable = {
         ...tableData,
         status: tableData.status as "waiting" | "playing" | "finished",
-        current_round: (tableData.current_round || 'preflop') as "preflop" | "flop" | "turn" | "river" | "showdown"
+        current_round: (tableData.current_round || 'preflop') as "preflop" | "flop" | "turn" | "river" | "showdown",
+        pot: tableData.pot || 0,
+        current_bet: tableData.current_bet || 0
       };
       
       setTable(typedTableData);
-      
-      await Promise.all([
-        loadPlayers(),
-        loadCommunityCards(),
-        loadChatMessages()
-      ]);
-      
+      return typedTableData;
     } catch (error) {
-      console.error('Error loading table data:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load table data",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
+      console.error('Error loading table:', error);
+      return null;
     }
   };
 
@@ -88,11 +98,15 @@ export const usePokerTable = (tableId: string) => {
         let playerCards: Card[] = [];
         if (item.cards) {
           try {
-            playerCards = (item.cards as any[]).map(card => ({
-              suit: card.suit as 'hearts' | 'diamonds' | 'clubs' | 'spades',
-              rank: card.rank as '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A',
-              faceUp: !!card.faceUp
-            }));
+            // Safely parse cards
+            const cardData = item.cards as unknown as SerializableCard[];
+            if (Array.isArray(cardData)) {
+              playerCards = cardData.map(card => ({
+                suit: card.suit,
+                rank: card.rank,
+                faceUp: !!card.faceUp
+              }));
+            }
           } catch (e) {
             console.error('Error parsing player cards:', e);
             playerCards = [];
@@ -118,10 +132,12 @@ export const usePokerTable = (tableId: string) => {
       });
       
       setPlayers(formattedPlayers);
+      return formattedPlayers;
     } catch (error) {
       console.error('Error loading players:', error);
       // Don't throw - we want to continue even if player loading fails
       setPlayers([]);
+      return [];
     }
   };
 
@@ -146,11 +162,14 @@ export const usePokerTable = (tableId: string) => {
       });
       
       setCommunityCards(allCards);
+      return allCards;
     } catch (error) {
       console.error('Error loading community cards:', error);
-      setCommunityCards(Array(5).fill(null).map(() => ({ 
+      const defaultCards = Array(5).fill(null).map(() => ({ 
         suit: 'spades' as const, rank: 'A' as const, faceUp: false 
-      })));
+      }));
+      setCommunityCards(defaultCards);
+      return defaultCards;
     }
   };
 
@@ -172,7 +191,7 @@ export const usePokerTable = (tableId: string) => {
       // Only fetch profiles if we have messages
       if (userIds.length === 0) {
         setChatMessages([]);
-        return;
+        return [];
       }
       
       const { data: profilesData, error: profilesError } = await supabase
@@ -201,10 +220,12 @@ export const usePokerTable = (tableId: string) => {
       });
       
       setChatMessages(messages);
+      return messages;
     } catch (error) {
       console.error('Error loading chat messages:', error);
       // Don't throw - we want to continue even if chat loading fails
       setChatMessages([]);
+      return [];
     }
   };
 
@@ -219,6 +240,7 @@ export const usePokerTable = (tableId: string) => {
     communityCards,
     chatMessages,
     reloadData: loadData,
+    reloadTable: loadTable,
     reloadPlayers: loadPlayers,
     reloadCommunityCards: loadCommunityCards,
     reloadChatMessages: loadChatMessages

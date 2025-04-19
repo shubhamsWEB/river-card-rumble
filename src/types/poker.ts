@@ -132,3 +132,10 @@ export interface WinningHand {
   handRanking: HandRanking;
   winAmount: number;
 }
+
+// Add serializable card type for Supabase storage
+export interface SerializableCard {
+  suit: Suit;
+  rank: Rank;
+  faceUp: boolean;
+}

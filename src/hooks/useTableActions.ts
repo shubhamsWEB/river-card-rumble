@@ -2,7 +2,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, Rank, Suit } from "@/types/poker";
+import { Card, Rank, Suit, PlayerAction, SerializableCard } from "@/types/poker";
 
 export const useTableActions = (tableId: string) => {
   const { user } = useAuth();
@@ -32,11 +32,13 @@ export const useTableActions = (tableId: string) => {
     }
   };
 
-  const handlePlayerAction = async (action: string, amount?: number) => {
+  const handlePlayerAction = async (action: PlayerAction, amount?: number) => {
     try {
       if (!user) {
         throw new Error("You must be logged in to perform actions");
       }
+      
+      console.log(`Submitting action ${action} with amount ${amount || 'none'}`);
       
       const { error } = await supabase
         .from('actions')
@@ -47,9 +49,135 @@ export const useTableActions = (tableId: string) => {
           amount: amount || null
         });
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error submitting action:", error);
+        throw error;
+      }
+      
+      // Process the action server-side
+      await processPlayerAction(action, amount);
+      
     } catch (error: any) {
       console.error('Error performing action:', error);
+      toast({
+        title: "Action failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+  
+  const processPlayerAction = async (action: PlayerAction, amount?: number) => {
+    if (!user) return;
+    
+    try {
+      // Get current table state
+      const { data: tableData, error: tableError } = await supabase
+        .from('poker_tables')
+        .select('pot, current_bet, current_round')
+        .eq('id', tableId)
+        .single();
+      
+      if (tableError) throw tableError;
+      
+      // Get the player's current state
+      const { data: playerData, error: playerError } = await supabase
+        .from('table_players')
+        .select('chips, current_bet, is_turn')
+        .eq('table_id', tableId)
+        .eq('user_id', user.id)
+        .single();
+      
+      if (playerError) throw playerError;
+      if (!playerData.is_turn) {
+        throw new Error("It's not your turn");
+      }
+      
+      let newChips = playerData.chips;
+      let additionalBet = 0;
+      let isFolded = false;
+      let isAllIn = false;
+      
+      // Handle the different actions
+      switch (action) {
+        case 'check':
+          if (tableData.current_bet > playerData.current_bet) {
+            throw new Error("Cannot check when there's an active bet");
+          }
+          break;
+          
+        case 'call':
+          additionalBet = Math.min(tableData.current_bet - playerData.current_bet, playerData.chips);
+          newChips -= additionalBet;
+          isAllIn = newChips === 0;
+          break;
+          
+        case 'bet':
+          if (!amount || amount <= 0) throw new Error("Invalid bet amount");
+          if (amount > playerData.chips) throw new Error("Not enough chips");
+          
+          additionalBet = amount;
+          newChips -= additionalBet;
+          isAllIn = newChips === 0;
+          break;
+          
+        case 'raise':
+          if (!amount || amount <= tableData.current_bet) {
+            throw new Error("Raise amount must be greater than current bet");
+          }
+          if (amount > playerData.chips) throw new Error("Not enough chips");
+          
+          additionalBet = amount - playerData.current_bet;
+          newChips -= additionalBet;
+          isAllIn = newChips === 0;
+          break;
+          
+        case 'fold':
+          isFolded = true;
+          break;
+          
+        case 'all-in':
+          additionalBet = playerData.chips;
+          newChips = 0;
+          isAllIn = true;
+          break;
+      }
+      
+      // Update player state
+      const newCurrentBet = playerData.current_bet + additionalBet;
+      const { error: updatePlayerError } = await supabase
+        .from('table_players')
+        .update({
+          chips: newChips,
+          current_bet: newCurrentBet,
+          is_folded: isFolded,
+          is_all_in: isAllIn,
+          is_turn: false
+        })
+        .eq('table_id', tableId)
+        .eq('user_id', user.id);
+      
+      if (updatePlayerError) throw updatePlayerError;
+      
+      // Update table
+      let newPot = tableData.pot + additionalBet;
+      let newCurrentBet = action === 'raise' || action === 'bet' ? amount as number : tableData.current_bet;
+      
+      const { error: updateTableError } = await supabase
+        .from('poker_tables')
+        .update({
+          pot: newPot,
+          current_bet: newCurrentBet
+        })
+        .eq('id', tableId);
+      
+      if (updateTableError) throw updateTableError;
+      
+      // Set next player's turn
+      await setNextPlayerToAct();
+      
+    } catch (error: any) {
+      console.error("Error processing player action:", error);
       toast({
         title: "Action failed",
         description: error.message,
@@ -258,6 +386,13 @@ export const useTableActions = (tableId: string) => {
         // Deal two random cards to the player
         const cards = dealCards();
         
+        // Serialize cards for JSON storage
+        const serializableCards: SerializableCard[] = cards.map(card => ({
+          suit: card.suit,
+          rank: card.rank,
+          faceUp: card.faceUp
+        }));
+        
         // Update player state
         await supabase
           .from('table_players')
@@ -270,7 +405,7 @@ export const useTableActions = (tableId: string) => {
             is_all_in: false,
             current_bet: currentBet,
             chips: playerData.chips - deduction,
-            cards: cards
+            cards: serializableCards
           })
           .eq('table_id', tableId)
           .eq('user_id', player.user_id);
@@ -405,6 +540,106 @@ export const useTableActions = (tableId: string) => {
     }
   };
 
+  // Function to set the next player to act
+  const setNextPlayerToAct = async () => {
+    try {
+      // Get table info
+      const { data: tableData, error: tableError } = await supabase
+        .from('poker_tables')
+        .select('current_dealer_position, active_position')
+        .eq('id', tableId)
+        .single();
+      
+      if (tableError) throw tableError;
+      
+      // Get active players (not folded)
+      const { data: players, error: playersError } = await supabase
+        .from('table_players')
+        .select('user_id, position')
+        .eq('table_id', tableId)
+        .eq('is_folded', false)
+        .order('position', { ascending: true });
+      
+      if (playersError) throw playersError;
+      
+      if (!players || players.length < 2) {
+        if (players && players.length === 1) {
+          // Only one player left, they win by default
+          await handleShowdown();
+        }
+        return;
+      }
+      
+      // Find current active player index
+      let currentActiveIndex = players.findIndex(p => p.position === tableData.active_position);
+      if (currentActiveIndex === -1) {
+        // If no active position or not found, use dealer position
+        currentActiveIndex = players.findIndex(p => p.position === tableData.current_dealer_position);
+      }
+      
+      // Next player after current active player
+      const nextPlayerIndex = (currentActiveIndex + 1) % players.length;
+      const activePosition = players[nextPlayerIndex].position;
+      
+      // Check if betting round is complete
+      const { data: playersWithBets, error: betsError } = await supabase
+        .from('table_players')
+        .select('current_bet, is_all_in, is_folded')
+        .eq('table_id', tableId);
+        
+      if (betsError) throw betsError;
+      
+      const activePlayers = playersWithBets?.filter(p => !p.is_folded) || [];
+      if (activePlayers.length <= 1) {
+        // Only one player left, they win by default
+        await handleShowdown();
+        return;
+      }
+      
+      const allBetsEqual = activePlayers.every((p, _, arr) => 
+        p.is_all_in || p.current_bet === arr[0].current_bet
+      );
+      
+      if (allBetsEqual && nextPlayerIndex === 0) {
+        // Betting round is complete, advance to next round
+        const { data: currentRoundData } = await supabase
+          .from('poker_tables')
+          .select('current_round')
+          .eq('id', tableId)
+          .single();
+          
+        if (currentRoundData) {
+          await advanceGameRound(currentRoundData.current_round);
+          return;
+        }
+      }
+      
+      // Clear all turn flags
+      await supabase
+        .from('table_players')
+        .update({ is_turn: false })
+        .eq('table_id', tableId);
+      
+      // Set active player's turn flag
+      await supabase
+        .from('table_players')
+        .update({ is_turn: true })
+        .eq('table_id', tableId)
+        .eq('position', activePosition);
+      
+      // Update table's active position
+      await supabase
+        .from('poker_tables')
+        .update({ active_position: activePosition })
+        .eq('id', tableId);
+        
+      // Start turn timer for the new active player
+      startTurnTimer();
+    } catch (error) {
+      console.error('Error setting next player to act:', error);
+    }
+  };
+
   // Function to deal the flop
   const dealFlop = async () => {
     try {
@@ -483,66 +718,6 @@ export const useTableActions = (tableId: string) => {
     
     // Return the requested number of cards
     return deck.slice(0, count);
-  };
-
-  // Function to set the next player to act
-  const setNextPlayerToAct = async () => {
-    try {
-      // Get table info
-      const { data: tableData, error: tableError } = await supabase
-        .from('poker_tables')
-        .select('current_dealer_position')
-        .eq('id', tableId)
-        .single();
-      
-      if (tableError) throw tableError;
-      
-      // Get active players (not folded)
-      const { data: players, error: playersError } = await supabase
-        .from('table_players')
-        .select('user_id, position')
-        .eq('table_id', tableId)
-        .eq('is_folded', false)
-        .order('position', { ascending: true });
-      
-      if (playersError) throw playersError;
-      
-      if (!players || players.length < 2) {
-        return;
-      }
-      
-      // Find dealer index
-      let dealerIndex = players.findIndex(p => p.position === tableData.current_dealer_position);
-      if (dealerIndex === -1) dealerIndex = 0;
-      
-      // Next player after dealer
-      const nextPlayerIndex = (dealerIndex + 1) % players.length;
-      const activePosition = players[nextPlayerIndex].position;
-      
-      // Clear all turn flags
-      await supabase
-        .from('table_players')
-        .update({ is_turn: false })
-        .eq('table_id', tableId);
-      
-      // Set active player's turn flag
-      await supabase
-        .from('table_players')
-        .update({ is_turn: true })
-        .eq('table_id', tableId)
-        .eq('position', activePosition);
-      
-      // Update table's active position
-      await supabase
-        .from('poker_tables')
-        .update({ active_position: activePosition })
-        .eq('id', tableId);
-        
-      // Start turn timer for the new active player
-      startTurnTimer();
-    } catch (error) {
-      console.error('Error setting next player to act:', error);
-    }
   };
 
   // Function to handle showdown
@@ -639,6 +814,7 @@ export const useTableActions = (tableId: string) => {
     checkPlayerAtTable,
     checkAndStartGame,
     startGame,
-    advanceGameRound
+    advanceGameRound,
+    setNextPlayerToAct
   };
 };
