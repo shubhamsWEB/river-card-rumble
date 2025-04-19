@@ -1,8 +1,7 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, Rank, Suit, PlayerAction, SerializableCard } from "@/types/poker";
+import { Card, Rank, Suit, PlayerAction, SerializableCard, Json } from "@/types/poker";
 
 export const useTableActions = (tableId: string) => {
   const { user } = useAuth();
@@ -144,12 +143,12 @@ export const useTableActions = (tableId: string) => {
       }
       
       // Update player state
-      const newCurrentBet = playerData.current_bet + additionalBet;
+      const playerCurrentBet = playerData.current_bet + additionalBet;
       const { error: updatePlayerError } = await supabase
         .from('table_players')
         .update({
           chips: newChips,
-          current_bet: newCurrentBet,
+          current_bet: playerCurrentBet,
           is_folded: isFolded,
           is_all_in: isAllIn,
           is_turn: false
@@ -161,13 +160,13 @@ export const useTableActions = (tableId: string) => {
       
       // Update table
       let newPot = tableData.pot + additionalBet;
-      let newCurrentBet = action === 'raise' || action === 'bet' ? amount as number : tableData.current_bet;
+      let tableBet = action === 'raise' || action === 'bet' ? amount as number : tableData.current_bet;
       
       const { error: updateTableError } = await supabase
         .from('poker_tables')
         .update({
           pot: newPot,
-          current_bet: newCurrentBet
+          current_bet: tableBet
         })
         .eq('id', tableId);
       
@@ -269,7 +268,6 @@ export const useTableActions = (tableId: string) => {
     }
   };
 
-  // New function to check if game should start
   const checkAndStartGame = async () => {
     try {
       // Get table info
@@ -303,7 +301,6 @@ export const useTableActions = (tableId: string) => {
     }
   };
 
-  // Function to start the poker game
   const startGame = async () => {
     try {
       // Get players at the table
@@ -386,12 +383,12 @@ export const useTableActions = (tableId: string) => {
         // Deal two random cards to the player
         const cards = dealCards();
         
-        // Serialize cards for JSON storage
-        const serializableCards: SerializableCard[] = cards.map(card => ({
+        // Serialize cards for JSON storage - cast to a type that Supabase can handle
+        const serializableCards = cards.map(card => ({
           suit: card.suit,
           rank: card.rank,
           faceUp: card.faceUp
-        }));
+        })) as unknown as Json;
         
         // Update player state
         await supabase
@@ -436,7 +433,6 @@ export const useTableActions = (tableId: string) => {
     }
   };
 
-  // Function to clear community cards
   const clearCommunityCards = async () => {
     try {
       await supabase
@@ -448,7 +444,6 @@ export const useTableActions = (tableId: string) => {
     }
   };
 
-  // Function to deal cards
   const dealCards = (): Card[] => {
     const suits: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
     const ranks: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -472,7 +467,6 @@ export const useTableActions = (tableId: string) => {
     return [deck[0], deck[1]];
   };
 
-  // Function to start turn timer
   const startTurnTimer = async () => {
     try {
       // In a real implementation, you would manage this with server-side logic
@@ -489,7 +483,6 @@ export const useTableActions = (tableId: string) => {
     }
   };
 
-  // Function to advance to next game round
   const advanceGameRound = async (currentRound: string) => {
     try {
       let nextRound: string;
@@ -540,7 +533,6 @@ export const useTableActions = (tableId: string) => {
     }
   };
 
-  // Function to set the next player to act
   const setNextPlayerToAct = async () => {
     try {
       // Get table info
@@ -640,7 +632,6 @@ export const useTableActions = (tableId: string) => {
     }
   };
 
-  // Function to deal the flop
   const dealFlop = async () => {
     try {
       const cards = dealCommunityCards(3);
@@ -660,7 +651,6 @@ export const useTableActions = (tableId: string) => {
     }
   };
 
-  // Function to deal the turn
   const dealTurn = async () => {
     try {
       const cards = dealCommunityCards(1);
@@ -678,7 +668,6 @@ export const useTableActions = (tableId: string) => {
     }
   };
 
-  // Function to deal the river
   const dealRiver = async () => {
     try {
       const cards = dealCommunityCards(1);
@@ -696,7 +685,6 @@ export const useTableActions = (tableId: string) => {
     }
   };
 
-  // Function to deal community cards
   const dealCommunityCards = (count: number): Card[] => {
     const suits: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
     const ranks: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -720,7 +708,6 @@ export const useTableActions = (tableId: string) => {
     return deck.slice(0, count);
   };
 
-  // Function to handle showdown
   const handleShowdown = async () => {
     try {
       // In a real implementation, this would evaluate all hands and determine the winner
