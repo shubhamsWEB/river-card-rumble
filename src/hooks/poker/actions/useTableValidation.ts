@@ -2,9 +2,11 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/components/ui/use-toast";
+import { useTableState } from "./useTableState";
 
 export const useTableValidation = (tableId: string) => {
   const { user } = useAuth();
+  const { getTableState } = useTableState(tableId);
 
   const validatePlayerTurn = async () => {
     if (!user) return { isValid: false, error: "Not authenticated" };
@@ -40,23 +42,6 @@ export const useTableValidation = (tableId: string) => {
     } catch (error: any) {
       console.error("Error validating turn:", error);
       return { isValid: false, error: error.message };
-    }
-  };
-
-  const getTableState = async () => {
-    if (!user) return null;
-    try {
-      const { data, error } = await supabase
-        .from('poker_tables')
-        .select('pot, current_bet, current_round')
-        .eq('id', tableId)
-        .single();
-        
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error("Error getting table state:", error);
-      return null;
     }
   };
 
