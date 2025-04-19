@@ -2,23 +2,22 @@
 import { supabase } from "@/integrations/supabase/client";
 
 export const useRpcFunctions = () => {
-  const addChips = async (userId: string, amount: number): Promise<number> => {
+  const addChipsToProfile = async (userId: string, amount: number) => {
     try {
-      const { data, error } = await supabase.rpc('add_chips', {
+      const { data, error } = await supabase.rpc('add_chips', { 
         user_id: userId,
-        amount
+        amount: amount 
       });
       
       if (error) throw error;
-      
-      return data || 0;
+      return data;
     } catch (error) {
-      console.error('Error adding chips:', error);
-      return 0;
+      console.error('Error adding chips to profile:', error);
+      throw error;
     }
   };
 
   return {
-    addChips
+    addChipsToProfile
   };
 };

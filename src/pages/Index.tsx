@@ -1,19 +1,14 @@
 
-// Splitting this large file into components and hooks
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import TableHeader from "@/components/poker/TableHeader";
-import PokerTable from "@/components/PokerTable";
+import PokerTableView from "@/components/poker/PokerTableView";
 import HomeView from "@/components/poker/HomeView";
 import { useTableActions } from "@/hooks/useTableActions";
-import { DbPokerTable } from "@/types/poker";
 
 const Index = () => {
-  const { user, profile } = useAuth();
-  const navigate = useNavigate();
-  
+  const { user } = useAuth();
   const [isInGame, setIsInGame] = useState<boolean>(false);
   const [currentTableId, setCurrentTableId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -65,16 +60,18 @@ const Index = () => {
     setIsInGame(true);
   };
 
+  if (isLoading) {
+    return <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <p className="text-white text-xl">Loading...</p>
+    </div>;
+  }
+
   if (isInGame && currentTableId) {
     return (
       <div className="min-h-screen bg-gray-900 flex flex-col">
         <TableHeader onLeaveTable={handleLeaveTable} />
         <main className="flex-grow">
-          <PokerTable 
-            tableId={currentTableId} 
-            onAction={() => {}} // These are handled internally by useTableActions now
-            onSendMessage={() => {}} // These are handled internally by useTableActions now
-          />
+          <PokerTableView tableId={currentTableId} />
         </main>
       </div>
     );

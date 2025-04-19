@@ -1,5 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
+import { useGameStartup } from "./useGameStartup";
 
 interface GameRoundActions {
   advanceGameRound: (currentRound: string) => Promise<void>;
@@ -177,10 +178,8 @@ export const usePlayerTurns = (tableId: string, { advanceGameRound }: GameRoundA
             .eq('table_id', tableId);
             
           if (count !== null && count >= 2) {
-            // Import and use startGame function
-            const { startGame } = await import('../useGameStartup').then(
-              module => ({ startGame: module.useGameStartup(tableId).startGame })
-            );
+            // Create a new instance of useGameStartup instead of dynamic import
+            const { startGame } = useGameStartup(tableId);
             await startGame();
           } else {
             // Not enough players, set table back to waiting

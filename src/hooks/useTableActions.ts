@@ -7,16 +7,15 @@ import { useGameStartup } from "./poker/useGameStartup";
 import { useCardDealing } from "./poker/useCardDealing";
 import { useGameRounds } from "./poker/useGameRounds";
 import { usePlayerTurns } from "./poker/usePlayerTurns";
+import { useRpcFunctions } from "./poker/useRpcFunctions";
 
 export const useTableActions = (tableId: string) => {
   const { user } = useAuth();
   const { checkAndStartGame, startGame } = useGameStartup(tableId);
-  const { dealFlop, dealTurn, dealRiver, clearCommunityCards } = useCardDealing(tableId);
+  const { dealFlop, dealTurn, dealRiver } = useCardDealing(tableId);
   const { advanceGameRound, handleShowdown } = useGameRounds(tableId, { dealFlop, dealTurn, dealRiver, handleShowdown: null });
-  const { setNextPlayerToAct, startTurnTimer } = usePlayerTurns(tableId, { advanceGameRound });
-  
-  // Fix circular reference
-  useGameRounds(tableId, { dealFlop, dealTurn, dealRiver, handleShowdown });
+  const { setNextPlayerToAct } = usePlayerTurns(tableId, { advanceGameRound });
+  const { addChipsToProfile } = useRpcFunctions();
   
   const handleSendMessage = async (message: string) => {
     try {
@@ -172,7 +171,7 @@ export const useTableActions = (tableId: string) => {
       
       // Update table
       let newPot = tableData.pot + additionalBet;
-      let tableBet = action === 'raise' || action === 'bet' ? amount as number : tableData.current_bet;
+      let tableBet = action === 'raise' || action === 'bet' ? (amount as number) : tableData.current_bet;
       
       const { error: updateTableError } = await supabase
         .from('poker_tables')
@@ -236,14 +235,12 @@ export const useTableActions = (tableId: string) => {
       if (leaveError) throw leaveError;
       
       // Add the chips back to the user's profile
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ 
-          chips: supabase.rpc('add_chips', { amount: currentChips }) 
-        })
-        .eq('id', user.id);
-      
-      if (updateError) throw updateError;
+      try {
+        await addChipsToProfile(user.id, currentChips);
+      } catch (error) {
+        console.error('Error adding chips to profile:', error);
+        // If this fails, still consider the operation successful but log the error
+      }
       
       toast({
         title: "Left table",
