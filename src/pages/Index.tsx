@@ -89,7 +89,7 @@ const Index = () => {
       const typedTables = (data || []).map(table => ({
         ...table,
         status: table.status as "waiting" | "playing" | "finished",
-        current_round: table.current_round as "preflop" | "flop" | "turn" | "river" | "showdown" || "preflop"
+        current_round: (table.current_round as "preflop" | "flop" | "turn" | "river" | "showdown") || "preflop"
       }));
       
       setTables(typedTables);
@@ -227,6 +227,10 @@ const Index = () => {
       setCurrentTableId(selectedTableId);
       setIsInGame(true);
       setShowJoinDialog(false);
+      
+      if (tableActions) {
+        tableActions.checkAndStartGame();
+      }
       
       toast({
         title: "Joined table",

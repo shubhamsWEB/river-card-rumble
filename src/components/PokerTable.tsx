@@ -1,4 +1,5 @@
-import React from 'react';
+
+import React, { useEffect } from 'react';
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { useAuth } from "@/contexts/AuthContext";
 import PlayerPosition from './PlayerPosition';
@@ -32,11 +33,24 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
     reloadChatMessages
   } = usePokerTable(tableId);
 
-  const { handlePlayerAction, handleSendMessage } = useTableActions(tableId);
+  const { 
+    handlePlayerAction, 
+    handleSendMessage, 
+    checkAndStartGame,
+    advanceGameRound
+  } = useTableActions(tableId);
   
   const currentPlayer = players.find(p => p.id === user?.id) || null;
   
-  React.useEffect(() => {
+  // Check if game should start when players change
+  useEffect(() => {
+    if (players.length >= 2 && table?.status === 'waiting') {
+      checkAndStartGame();
+    }
+  }, [players.length, table?.status]);
+
+  // Subscribe to table updates
+  useEffect(() => {
     const unsubscribe = subscribe(tableId, async (update: any) => {
       switch (update.type) {
         case 'player':
@@ -101,7 +115,10 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
                     key={i} 
                     value={20} 
                     className="animate-chip-toss" 
-                    style={{ animationDelay: `${i * 0.05}s` }} 
+                    style={{ 
+                      animationDelay: `${i * 0.05}s`, 
+                      animationFillMode: 'backwards'
+                    }} 
                   />
                 ))}
               </div>
@@ -134,7 +151,8 @@ const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessag
           <div className="text-white text-sm">
             <span className="mr-3">Small Blind: ${table.small_blind}</span>
             <span className="mr-3">Big Blind: ${table.big_blind}</span>
-            <span>Round: {table.current_round}</span>
+            <span className="mr-3">Round: {table.current_round}</span>
+            <span>Status: {table.status}</span>
           </div>
         </div>
         

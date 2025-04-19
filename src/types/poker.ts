@@ -120,3 +120,15 @@ export interface UserProfile {
   chips: number;
   created_at: string;
 }
+
+export interface HandRanking {
+  rank: number; // 1-10, where 10 is royal flush and 1 is high card
+  name: string; // "Royal Flush", "Straight Flush", etc.
+  cards: Card[]; // The 5 cards that make up the hand
+}
+
+export interface WinningHand {
+  playerId: string;
+  handRanking: HandRanking;
+  winAmount: number;
+}
