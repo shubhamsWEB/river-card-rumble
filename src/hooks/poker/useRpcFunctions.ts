@@ -27,5 +27,16 @@ export const useRpcFunctions = () => {
     }
   };
 
-  return { callRpcFunction };
+  // Add back the specific function for adding chips for backwards compatibility
+  const addChipsToProfile = async (userId: string, amount: number) => {
+    return callRpcFunction('add_chips', {
+      p_user_id: userId,
+      p_amount: amount
+    });
+  };
+
+  return { 
+    callRpcFunction,
+    addChipsToProfile
+  };
 };
