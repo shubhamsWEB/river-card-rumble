@@ -12,6 +12,21 @@ import { useShowdown } from "./poker/useShowdown";
 
 export const useTableActions = (tableId: string) => {
   const { user } = useAuth();
+  
+  // If tableId is empty, return empty handlers to maintain consistent hook calls
+  if (!tableId) {
+    return {
+      handleSendMessage: async () => {},
+      handlePlayerAction: async () => {},
+      handleLeaveTable: async () => {},
+      checkPlayerAtTable: async () => false,
+      checkAndStartGame: async () => {},
+      startGame: async () => {},
+      advanceGameRound: async () => {},
+      setNextPlayerToAct: async () => {}
+    };
+  }
+
   const { checkAndStartGame, startGame } = useGameStartup(tableId);
   const { dealFlop, dealTurn, dealRiver } = useCardDealing(tableId);
   const { handleShowdown } = useShowdown(tableId);

@@ -13,10 +13,17 @@ const Index = () => {
   const [currentTableId, setCurrentTableId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   
+  // Initialize tableActions with null to ensure consistent hook usage
+  // This fixes the "rendered more hooks than during previous render" error
+  const tableActions = useTableActions(currentTableId || '');
+  
   // Check if user is already at a table on initial load
   useEffect(() => {
     const checkExistingGame = async () => {
-      if (!user) return;
+      if (!user) {
+        setIsLoading(false);
+        return;
+      }
       
       try {
         const { data, error } = await supabase
@@ -40,8 +47,6 @@ const Index = () => {
     
     checkExistingGame();
   }, [user]);
-  
-  const tableActions = currentTableId ? useTableActions(currentTableId) : null;
   
   const handleLeaveTable = async () => {
     if (!currentTableId || !tableActions) return;
