@@ -1,4 +1,3 @@
-
 import { useAuth } from "@/contexts/AuthContext";
 import { PlayerAction } from "@/types/poker";
 import { useGameStartup } from "./poker/useGameStartup";
@@ -7,7 +6,7 @@ import { useGameRounds } from "./poker/useGameRounds";
 import { usePlayerTurns } from "./poker/usePlayerTurns";
 import { useChatActions } from "./poker/useChatActions";
 import { useTableManagement } from "./poker/useTableManagement";
-import { usePlayerActionProcessor } from "./poker/usePlayerActionProcessor";
+import { usePlayerActionProcessor } from "./poker/actions/usePlayerActionProcessor";
 
 export const useTableActions = (tableId: string) => {
   const { user } = useAuth();
