@@ -10,10 +10,13 @@ interface TurnManagerProps {
 
 export const useTurnManager = ({ tableId, advanceGameRound }: TurnManagerProps) => {
   const { handleShowdown } = useShowdown(tableId);
-  const { startTurnTimer } = usePokerTimer(tableId);
+  const { startTurnTimer, cancelTurnTimer } = usePokerTimer(tableId);
 
   const setNextPlayerToAct = async () => {
     try {
+      // Cancel the current turn timer when moving to next player
+      cancelTurnTimer();
+      
       const { data: tableData, error: tableError } = await supabase
         .from('poker_tables')
         .select('current_dealer_position, active_position')
@@ -92,6 +95,7 @@ export const useTurnManager = ({ tableId, advanceGameRound }: TurnManagerProps) 
         .update({ active_position: activePosition })
         .eq('id', tableId);
         
+      // Start turn timer for the new player
       startTurnTimer();
     } catch (error) {
       console.error('Error setting next player to act:', error);

@@ -8,13 +8,16 @@ interface GameRoundActions {
 }
 
 export const usePlayerTurns = (tableId: string, { advanceGameRound }: GameRoundActions) => {
-  const { startTurnTimer } = usePokerTimer(tableId);
+  const { startTurnTimer, cancelTurnTimer, secondsLeft, isTimerRunning } = usePokerTimer(tableId);
   const { setNextPlayerToAct } = useTurnManager({ tableId, advanceGameRound });
   const { handleShowdown } = useShowdown(tableId);
 
   return {
     setNextPlayerToAct,
     startTurnTimer,
+    cancelTurnTimer,
+    secondsLeft,
+    isTimerRunning,
     handleShowdown
   };
 };
