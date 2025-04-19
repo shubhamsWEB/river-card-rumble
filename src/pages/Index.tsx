@@ -12,6 +12,7 @@ import TableHeader from "@/components/poker/TableHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { DbPokerTable } from "@/types/poker";
 import { Loader2, Users, LogOut } from "lucide-react";
+import { useTableActions } from "@/hooks/useTableActions";
 
 interface ChatMessage {
   id: string;
@@ -68,6 +69,8 @@ const Index = () => {
   
   const [availablePositions, setAvailablePositions] = useState<number[]>([]);
   const [selectedPosition, setSelectedPosition] = useState<number | null>(null);
+  
+  const tableActions = currentTableId ? useTableActions(currentTableId) : null;
 
   useEffect(() => {
     fetchTables();
@@ -85,7 +88,8 @@ const Index = () => {
       
       const typedTables = (data || []).map(table => ({
         ...table,
-        status: table.status as "waiting" | "playing" | "finished"
+        status: table.status as "waiting" | "playing" | "finished",
+        current_round: table.current_round as "preflop" | "flop" | "turn" | "river" | "showdown" || "preflop"
       }));
       
       setTables(typedTables);
@@ -103,6 +107,36 @@ const Index = () => {
   
   const handleJoinTable = async (tableId: string) => {
     setSelectedTableId(tableId);
+    
+    if (user) {
+      setIsLoading(true);
+      
+      try {
+        const { data: existingPlayer } = await supabase
+          .from('table_players')
+          .select('id')
+          .eq('table_id', tableId)
+          .eq('user_id', user.id)
+          .maybeSingle();
+        
+        if (existingPlayer) {
+          setCurrentTableId(tableId);
+          setIsInGame(true);
+          
+          toast({
+            title: "Rejoining table",
+            description: "You are already seated at this table",
+          });
+          setIsLoading(false);
+          return;
+        }
+      } catch (error) {
+        console.error("Error checking if player is at table:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    
     setShowJoinDialog(true);
     
     const table = tables.find(t => t.id === tableId);
@@ -149,6 +183,26 @@ const Index = () => {
     
     setIsLoading(true);
     try {
+      const { data: existingPlayer } = await supabase
+        .from('table_players')
+        .select('id')
+        .eq('table_id', selectedTableId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (existingPlayer) {
+        setCurrentTableId(selectedTableId);
+        setIsInGame(true);
+        setShowJoinDialog(false);
+        
+        toast({
+          title: "Already at table",
+          description: "You are already seated at this table",
+        });
+        setIsLoading(false);
+        return;
+      }
+      
       const { error: joinError } = await supabase
         .from('table_players')
         .insert({
@@ -191,51 +245,13 @@ const Index = () => {
   };
   
   const handleLeaveTable = async () => {
-    if (!currentTableId || !user) return;
+    if (!currentTableId || !tableActions) return;
     
-    try {
-      const { data: playerData, error: playerError } = await supabase
-        .from('table_players')
-        .select('chips')
-        .eq('table_id', currentTableId)
-        .eq('user_id', user.id)
-        .single();
-      
-      if (playerError) throw playerError;
-      
-      const currentChips = playerData?.chips || 0;
-      
-      const { error: leaveError } = await supabase
-        .from('table_players')
-        .delete()
-        .eq('table_id', currentTableId)
-        .eq('user_id', user.id);
-      
-      if (leaveError) throw leaveError;
-      
-      if (profile && currentChips > 0) {
-        const { error: updateError } = await supabase
-          .from('profiles')
-          .update({ chips: profile.chips + currentChips })
-          .eq('id', user.id);
-        
-        if (updateError) throw updateError;
-      }
-      
+    const result = await tableActions.handleLeaveTable();
+    
+    if (result.success) {
       setIsInGame(false);
       setCurrentTableId(null);
-      
-      toast({
-        title: "Left table",
-        description: `You have left the table with $${currentChips} chips`,
-      });
-    } catch (error: any) {
-      console.error('Error leaving table:', error);
-      toast({
-        title: "Failed to leave table",
-        description: error.message,
-        variant: "destructive"
-      });
     }
   };
   

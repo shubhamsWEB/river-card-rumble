@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { DbPokerTable, Card, ChatMessage } from '../types/poker';
@@ -24,14 +25,16 @@ export const usePokerTable = (tableId: string) => {
       const typedTableData: DbPokerTable = {
         ...tableData,
         status: tableData.status as "waiting" | "playing" | "finished",
-        current_round: tableData.current_round as "preflop" | "flop" | "turn" | "river" | "showdown"
+        current_round: (tableData.current_round || 'preflop') as "preflop" | "flop" | "turn" | "river" | "showdown"
       };
       
       setTable(typedTableData);
       
-      await loadPlayers();
-      await loadCommunityCards();
-      await loadChatMessages();
+      await Promise.all([
+        loadPlayers(),
+        loadCommunityCards(),
+        loadChatMessages()
+      ]);
       
     } catch (error) {
       console.error('Error loading table data:', error);
@@ -47,30 +50,38 @@ export const usePokerTable = (tableId: string) => {
 
   const loadPlayers = async () => {
     try {
-      const { data, error } = await supabase
+      // First fetch the table players
+      const { data: playerData, error: playerError } = await supabase
         .from('table_players')
-        .select(`
-          id,
-          user_id,
-          position,
-          chips,
-          current_bet,
-          is_active,
-          is_dealer,
-          is_small_blind,
-          is_big_blind,
-          is_turn,
-          is_folded,
-          is_all_in,
-          cards,
-          profiles:user_id (username, avatar_url)
-        `)
+        .select('*')
         .eq('table_id', tableId);
       
-      if (error) throw error;
+      if (playerError) throw playerError;
       
-      const formattedPlayers = (data || []).map(item => {
-        const profile = item.profiles as any;
+      // Then fetch the profiles separately
+      const userIds = (playerData || []).map(player => player.user_id);
+      
+      // Only fetch profiles if we have user IDs
+      if (userIds.length === 0) {
+        setPlayers([]);
+        return;
+      }
+      
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .in('id', userIds);
+      
+      if (profilesError) throw profilesError;
+      
+      // Create a map of user IDs to profiles for easy lookup
+      const profileMap = new Map();
+      (profilesData || []).forEach(profile => {
+        profileMap.set(profile.id, profile);
+      });
+      
+      const formattedPlayers = (playerData || []).map(item => {
+        const profile = profileMap.get(item.user_id);
         const username = profile?.username || 'Unknown';
         const avatar = profile?.avatar_url || null;
         
@@ -109,6 +120,8 @@ export const usePokerTable = (tableId: string) => {
       setPlayers(formattedPlayers);
     } catch (error) {
       console.error('Error loading players:', error);
+      // Don't throw - we want to continue even if player loading fails
+      setPlayers([]);
     }
   };
 
@@ -135,29 +148,48 @@ export const usePokerTable = (tableId: string) => {
       setCommunityCards(allCards);
     } catch (error) {
       console.error('Error loading community cards:', error);
+      setCommunityCards(Array(5).fill(null).map(() => ({ 
+        suit: 'spades' as const, rank: 'A' as const, faceUp: false 
+      })));
     }
   };
 
   const loadChatMessages = async () => {
     try {
-      const { data, error } = await supabase
+      // Fetch chat messages and user profiles separately
+      const { data: messagesData, error: messagesError } = await supabase
         .from('chat_messages')
-        .select(`
-          id,
-          user_id,
-          message,
-          created_at,
-          profiles:user_id (username)
-        `)
+        .select('*')
         .eq('table_id', tableId)
         .order('created_at', { ascending: true })
         .limit(50);
       
-      if (error) throw error;
+      if (messagesError) throw messagesError;
       
-      const messages: ChatMessage[] = (data || []).map(msg => {
-        const profile = msg.profiles as any;
-        const username = profile?.username || 'Unknown';
+      // Get unique user IDs
+      const userIds = [...new Set((messagesData || []).map(msg => msg.user_id))];
+      
+      // Only fetch profiles if we have messages
+      if (userIds.length === 0) {
+        setChatMessages([]);
+        return;
+      }
+      
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, username')
+        .in('id', userIds);
+      
+      if (profilesError) throw profilesError;
+      
+      // Create a map of user IDs to usernames for easy lookup
+      const usernameMap = new Map();
+      (profilesData || []).forEach(profile => {
+        usernameMap.set(profile.id, profile.username);
+      });
+      
+      const messages: ChatMessage[] = (messagesData || []).map(msg => {
+        const username = usernameMap.get(msg.user_id) || 'Unknown';
         
         return {
           id: msg.id,
@@ -171,6 +203,8 @@ export const usePokerTable = (tableId: string) => {
       setChatMessages(messages);
     } catch (error) {
       console.error('Error loading chat messages:', error);
+      // Don't throw - we want to continue even if chat loading fails
+      setChatMessages([]);
     }
   };
 
