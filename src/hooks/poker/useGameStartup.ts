@@ -62,24 +62,39 @@ export const useGameStartup = (tableId: string) => {
     };
   };
 
-  const dealCards = (playerPosition: number, tableId: string): Card[] => {
+  const createDeck = (seed: string): Card[] => {
     const suits: Suit[] = ['hearts', 'diamonds', 'clubs', 'spades'];
     const ranks: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
     
-    // Create a seeded random generator based on player position and table ID
-    // This ensures the same player gets the same cards if the game is reloaded
-    const random = seedRandom(`${tableId}-${playerPosition}`);
+    // Create a full 52-card deck
+    const deck: Card[] = [];
+    for (const suit of suits) {
+      for (const rank of ranks) {
+        deck.push({ suit, rank, faceUp: false });
+      }
+    }
     
-    // Select two cards with the seeded random generator
-    const card1Suit = suits[Math.floor(random() * suits.length)];
-    const card1Rank = ranks[Math.floor(random() * ranks.length)];
+    // Create a deterministic shuffle using the seed
+    const random = seedRandom(seed);
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
     
-    const card2Suit = suits[Math.floor(random() * suits.length)];
-    const card2Rank = ranks[Math.floor(random() * ranks.length)];
+    return deck;
+  };
+
+  const dealCards = (position: number): Card[] => {
+    // Use a consistent seed for the entire table
+    const deck = createDeck(`${tableId}-cards`);
+    
+    // Each player gets their own cards based on position
+    // This ensures the same position always gets the same cards in a given hand
+    const playerStartIndex = position * 2; // Each player gets 2 cards
     
     return [
-      { suit: card1Suit, rank: card1Rank, faceUp: false },
-      { suit: card2Suit, rank: card2Rank, faceUp: false }
+      { ...deck[playerStartIndex], faceUp: false },
+      { ...deck[playerStartIndex + 1], faceUp: false }
     ];
   };
 
@@ -126,11 +141,16 @@ export const useGameStartup = (tableId: string) => {
           status: 'playing',
           current_round: 'preflop',
           current_dealer_position: players[dealerPosition].position,
-          pot: 0,
+          pot: tableData.small_blind + tableData.big_blind, // Start pot with blinds
           current_bet: tableData.big_blind,
           active_position: players[firstToActPosition].position
         })
         .eq('id', tableId);
+      
+      console.log("Game starting with dealer at position", players[dealerPosition].position);
+      console.log("Small blind at position", players[sbPosition].position);
+      console.log("Big blind at position", players[bbPosition].position);
+      console.log("First to act at position", players[firstToActPosition].position);
       
       // Update player roles and deal cards
       for (let i = 0; i < players.length; i++) {
@@ -163,7 +183,7 @@ export const useGameStartup = (tableId: string) => {
         if (!playerData) continue;
         
         // Deal two cards to the player using their position for consistency
-        const cards = dealCards(player.position, tableId);
+        const cards = dealCards(player.position);
         
         // Serialize cards for JSON storage
         const serializableCards = cards.map(card => ({
@@ -190,17 +210,6 @@ export const useGameStartup = (tableId: string) => {
           .eq('user_id', player.user_id);
       }
       
-      // Update pot with blinds
-      await supabase
-        .from('poker_tables')
-        .update({
-          pot: tableData.small_blind + tableData.big_blind
-        })
-        .eq('id', tableId);
-      
-      // Start the turn timer
-      startTurnTimer();
-      
       toast({
         title: "Game started",
         description: "The poker game has begun!",
@@ -226,20 +235,10 @@ export const useGameStartup = (tableId: string) => {
     }
   };
 
-  const startTurnTimer = async () => {
-    try {
-      console.log("Turn timer would start (30 seconds)");
-      // In a real implementation, you would manage this with server-side logic
-    } catch (error) {
-      console.error('Error starting turn timer:', error);
-    }
-  };
-
   return {
     checkAndStartGame,
     startGame,
     dealCards,
-    startTurnTimer,
     clearCommunityCards
   };
 };

@@ -40,8 +40,8 @@ const CommunityCards: React.FC<CommunityCardsProps> = ({ cards, round }) => {
     <div className="flex gap-1 sm:gap-2 justify-center py-4">
       {visible.map((card, index) => (
         <PokerCard 
-          key={`${card.suit}-${card.rank}`}
-          card={card}
+          key={`community-${card.suit}-${card.rank}-${index}`}
+          card={{...card, faceUp: true}}
           className="animate-card-deal"
           style={{ 
             animationDelay: `${index * 0.1}s`,

@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { Card, Rank, Suit } from "@/types/poker";
 
@@ -43,8 +44,33 @@ export const useRpcFunctions = (tableId: string) => {
     return deck.slice(0, count);
   };
 
+  // Add chips to user profile after leaving table
+  const addChipsToProfile = async (userId: string, chips: number): Promise<void> => {
+    try {
+      // Get current chips
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('chips')
+        .eq('id', userId)
+        .single();
+      
+      if (profileError) throw profileError;
+      
+      // Update profile with new chips
+      await supabase
+        .from('profiles')
+        .update({ chips: profileData.chips + chips })
+        .eq('id', userId);
+        
+    } catch (error) {
+      console.error('Error adding chips to profile:', error);
+      throw error;
+    }
+  };
+
   return {
     dealCards,
-    dealCommunityCards
+    dealCommunityCards,
+    addChipsToProfile
   };
 };

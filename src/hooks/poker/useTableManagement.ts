@@ -6,7 +6,7 @@ import { useRpcFunctions } from "./useRpcFunctions";
 
 export const useTableManagement = (tableId: string) => {
   const { user } = useAuth();
-  const { addChipsToProfile } = useRpcFunctions();
+  const { addChipsToProfile } = useRpcFunctions(tableId);
 
   const handleLeaveTable = async (): Promise<void> => {
     try {

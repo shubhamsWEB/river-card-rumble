@@ -9,6 +9,7 @@ interface GameRoundActions {
 export const usePlayerTurns = (tableId: string, { advanceGameRound, handleShowdown }: GameRoundActions) => {
   const setNextPlayerToAct = async () => {
     try {
+      // Get current table state
       const { data: tableData, error: tableError } = await supabase
         .from('poker_tables')
         .select('current_dealer_position, active_position, current_round, current_bet')
@@ -26,46 +27,70 @@ export const usePlayerTurns = (tableId: string, { advanceGameRound, handleShowdo
       
       if (playersError) throw playersError;
       
-      // Filter out folded and all-in players for turn management
-      const activePlayers = (players || []).filter(p => !p.is_folded && !p.is_all_in);
+      if (!players || players.length === 0) {
+        console.log("No players found at table");
+        return;
+      }
       
-      if (activePlayers.length < 2) {
-        // If there's only one active player (or none), handle showdown
-        if (activePlayers.length <= 1 && players && players.filter(p => !p.is_folded).length >= 1) {
-          await handleShowdown();
-        }
+      console.log("Current table state:", { 
+        round: tableData.current_round,
+        currentBet: tableData.current_bet,
+        activePosition: tableData.active_position 
+      });
+      
+      // Filter out folded and all-in players
+      const activePlayers = players.filter(p => !p.is_folded && !p.is_all_in);
+      
+      console.log(`Active players: ${activePlayers.length}`);
+      activePlayers.forEach(p => console.log(`Position ${p.position}, bet: ${p.current_bet}`));
+      
+      // If there's only one active player left, go to showdown
+      if (activePlayers.length <= 1) {
+        console.log("Only one active player remaining - going to showdown");
+        await handleShowdown();
         return;
       }
 
       // Check if betting round is complete (all active players have equal bets)
-      const allPlayersEqualBet = activePlayers.every(p => p.current_bet === tableData.current_bet);
+      const allBetsEqual = activePlayers.every(p => p.current_bet === tableData.current_bet);
       
-      // If all players have equal bets and everyone has acted, the round is complete
-      if (allPlayersEqualBet) {
-        const allPlayersActed = activePlayers.every(p => p.current_bet === tableData.current_bet);
+      // If all bets are equal, we need to advance to the next round
+      if (allBetsEqual && tableData.current_bet >= 0) {
+        console.log("All bets are equal - round complete");
         
-        if (allPlayersActed) {
-          console.log("All players have acted with equal bets, advancing to next round");
-          if (tableData.current_round) {
-            await advanceGameRound(tableData.current_round);
-            return;
-          }
+        // Check if we need to advance the round
+        if (tableData.current_round) {
+          console.log(`Advancing from ${tableData.current_round} to next round`);
+          await advanceGameRound(tableData.current_round);
+          return;
         }
       }
-
-      // Find current active player index
-      let currentActiveIndex = -1;
-      if (tableData.active_position !== null) {
-        currentActiveIndex = activePlayers.findIndex(p => p.position === tableData.active_position);
+      
+      // Get active position to find next player
+      const currentPosition = tableData.active_position;
+      
+      // Find next eligible player to act
+      let nextPlayer = null;
+      const sortedPositions = [...activePlayers].sort((a, b) => a.position - b.position);
+      
+      // Find players with position > currentPosition
+      const higherPositions = sortedPositions.filter(p => p.position > currentPosition);
+      
+      if (higherPositions.length > 0) {
+        // Take the first player with position > currentPosition
+        nextPlayer = higherPositions[0];
+      } else if (sortedPositions.length > 0) {
+        // Wrap around to the beginning
+        nextPlayer = sortedPositions[0];
       }
       
-      // If no active player found or at the end of the list, start from the beginning
-      const nextPlayerIndex = (currentActiveIndex === -1 || currentActiveIndex === activePlayers.length - 1) 
-        ? 0 
-        : currentActiveIndex + 1;
+      if (!nextPlayer) {
+        console.log("No next player found");
+        return;
+      }
       
-      const nextPlayer = activePlayers[nextPlayerIndex];
-
+      console.log(`Setting next player: position ${nextPlayer.position}`);
+      
       // Update turn status for all players
       await supabase
         .from('table_players')
