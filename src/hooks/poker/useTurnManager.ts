@@ -9,7 +9,7 @@ interface TurnManagerProps {
 }
 
 export const useTurnManager = ({ tableId, advanceGameRound, handleShowdown }: TurnManagerProps) => {
-  const { startTurnTimer, cancelTurnTimer } = usePokerTimer(tableId);
+  const { startTurnTimer, cancelTurnTimer, secondsLeft, isTimerRunning } = usePokerTimer(tableId);
 
   const setNextPlayerToAct = async () => {
     try {
@@ -102,6 +102,10 @@ export const useTurnManager = ({ tableId, advanceGameRound, handleShowdown }: Tu
   };
 
   return {
-    setNextPlayerToAct
+    setNextPlayerToAct,
+    startTurnTimer,
+    cancelTurnTimer,
+    secondsLeft,
+    isTimerRunning
   };
 };

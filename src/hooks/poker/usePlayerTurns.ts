@@ -1,6 +1,5 @@
 
 import { useTurnManager } from "./useTurnManager";
-import { usePokerTimer } from "./usePokerTimer";
 
 interface GameRoundActions {
   advanceGameRound: (currentRound: string) => Promise<void>;
@@ -8,8 +7,14 @@ interface GameRoundActions {
 }
 
 export const usePlayerTurns = (tableId: string, { advanceGameRound, handleShowdown }: GameRoundActions) => {
-  const { startTurnTimer, cancelTurnTimer, secondsLeft, isTimerRunning } = usePokerTimer(tableId);
-  const { setNextPlayerToAct } = useTurnManager({ tableId, advanceGameRound, handleShowdown });
+  // Create turn manager without direct timer initialization
+  const { 
+    setNextPlayerToAct,
+    startTurnTimer, 
+    cancelTurnTimer, 
+    secondsLeft, 
+    isTimerRunning 
+  } = useTurnManager({ tableId, advanceGameRound, handleShowdown });
 
   return {
     setNextPlayerToAct,

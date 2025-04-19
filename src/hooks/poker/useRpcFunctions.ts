@@ -1,28 +1,31 @@
 
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
-interface RpcResponse {
-  data: any;
-  error: Error | null;
+// This type allows for string parameters
+export interface RpcCallParams {
+  [key: string]: any;
 }
 
 export const useRpcFunctions = () => {
-  const addChipsToProfile = async (userId: string, amount: number): Promise<RpcResponse> => {
+  const { user } = useAuth();
+
+  const callRpcFunction = async (functionName: string, params: RpcCallParams = {}) => {
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
     try {
-      const { data, error } = await supabase.rpc('add_chips', {
-        p_user_id: userId,
-        p_amount: amount
-      });
+      const { data, error } = await supabase.rpc(functionName, params);
       
       if (error) throw error;
+      
       return { data, error: null };
     } catch (error: any) {
-      console.error('Error adding chips to profile:', error);
-      return { data: null, error };
+      console.error(`Error calling RPC function ${functionName}:`, error);
+      return { data: null, error: error.message || 'Unknown error' };
     }
   };
 
-  return {
-    addChipsToProfile
-  };
+  return { callRpcFunction };
 };
