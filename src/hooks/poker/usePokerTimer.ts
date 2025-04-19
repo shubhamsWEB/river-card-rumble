@@ -1,27 +1,28 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/use-toast";
 
 export const usePokerTimer = (tableId: string) => {
-  const [turnTimer, setTurnTimer] = useState<NodeJS.Timeout | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number>(30);
   const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
+  const turnTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Clean up timer on unmount
     return () => {
-      if (turnTimer) {
-        clearTimeout(turnTimer);
+      if (turnTimerRef.current) {
+        clearTimeout(turnTimerRef.current);
       }
     };
-  }, [turnTimer]);
+  }, []);
 
   const startTurnTimer = async () => {
     try {
       // Clear any existing timer
-      if (turnTimer) {
-        clearTimeout(turnTimer);
+      if (turnTimerRef.current) {
+        clearTimeout(turnTimerRef.current);
+        turnTimerRef.current = null;
       }
 
       const TURN_DURATION = 30; // 30 seconds for turn decision
@@ -39,7 +40,7 @@ export const usePokerTimer = (tableId: string) => {
         .single();
       
       // Create the timer that will auto-fold after time is up
-      const timer = setTimeout(async () => {
+      turnTimerRef.current = setTimeout(async () => {
         console.log("Turn timer expired, auto-folding");
         
         const { data: isStillTurn } = await supabase
@@ -89,8 +90,6 @@ export const usePokerTimer = (tableId: string) => {
           setIsTimerRunning(false);
         }
       }, TURN_DURATION * 1000);
-      
-      setTurnTimer(timer);
     } catch (error) {
       console.error('Error starting turn timer:', error);
       setIsTimerRunning(false);
@@ -98,9 +97,9 @@ export const usePokerTimer = (tableId: string) => {
   };
 
   const cancelTurnTimer = () => {
-    if (turnTimer) {
-      clearTimeout(turnTimer);
-      setTurnTimer(null);
+    if (turnTimerRef.current) {
+      clearTimeout(turnTimerRef.current);
+      turnTimerRef.current = null;
       setIsTimerRunning(false);
       console.log("Turn timer canceled");
     }
