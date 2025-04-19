@@ -5,9 +5,10 @@ interface PokerChipProps {
   value: number;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
+  style?: React.CSSProperties;
 }
 
-const PokerChip: React.FC<PokerChipProps> = ({ value, size = 'md', className = '' }) => {
+const PokerChip: React.FC<PokerChipProps> = ({ value, size = 'md', className = '', style }) => {
   // Determine chip color based on value
   const getChipColor = (value: number) => {
     if (value <= 5) return 'bg-poker-chip-red';
@@ -26,7 +27,7 @@ const PokerChip: React.FC<PokerChipProps> = ({ value, size = 'md', className = '
   };
 
   return (
-    <div className={`poker-chip relative ${getChipColor(value)} ${getSizeClasses(size)} ${className} rounded-full flex items-center justify-center border-2 border-white shadow-md`}>
+    <div className={`poker-chip relative ${getChipColor(value)} ${getSizeClasses(size)} ${className} rounded-full flex items-center justify-center border-2 border-white shadow-md`} style={style}>
       <span className="text-white font-bold">{value}</span>
       <div className="absolute inset-0 rounded-full border-2 border-white border-opacity-20 scale-75"></div>
     </div>

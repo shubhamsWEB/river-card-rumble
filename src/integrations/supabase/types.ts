@@ -9,7 +9,239 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      actions: {
+        Row: {
+          action_type: string
+          amount: number | null
+          created_at: string
+          id: string
+          table_id: string
+          user_id: string
+        }
+        Insert: {
+          action_type: string
+          amount?: number | null
+          created_at?: string
+          id?: string
+          table_id: string
+          user_id: string
+        }
+        Update: {
+          action_type?: string
+          amount?: number | null
+          created_at?: string
+          id?: string
+          table_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "actions_table_id_fkey"
+            columns: ["table_id"]
+            isOneToOne: false
+            referencedRelation: "poker_tables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_messages: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          table_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          table_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          table_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_table_id_fkey"
+            columns: ["table_id"]
+            isOneToOne: false
+            referencedRelation: "poker_tables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_cards: {
+        Row: {
+          card_index: number
+          id: string
+          rank: string
+          suit: string
+          table_id: string
+        }
+        Insert: {
+          card_index: number
+          id?: string
+          rank: string
+          suit: string
+          table_id: string
+        }
+        Update: {
+          card_index?: number
+          id?: string
+          rank?: string
+          suit?: string
+          table_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_cards_table_id_fkey"
+            columns: ["table_id"]
+            isOneToOne: false
+            referencedRelation: "poker_tables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      poker_tables: {
+        Row: {
+          active_position: number | null
+          big_blind: number
+          created_at: string
+          current_bet: number | null
+          current_dealer_position: number | null
+          current_round: string | null
+          id: string
+          max_buy_in: number
+          max_players: number
+          min_buy_in: number
+          name: string
+          pot: number | null
+          small_blind: number
+          status: string
+        }
+        Insert: {
+          active_position?: number | null
+          big_blind?: number
+          created_at?: string
+          current_bet?: number | null
+          current_dealer_position?: number | null
+          current_round?: string | null
+          id?: string
+          max_buy_in?: number
+          max_players?: number
+          min_buy_in?: number
+          name: string
+          pot?: number | null
+          small_blind?: number
+          status?: string
+        }
+        Update: {
+          active_position?: number | null
+          big_blind?: number
+          created_at?: string
+          current_bet?: number | null
+          current_dealer_position?: number | null
+          current_round?: string | null
+          id?: string
+          max_buy_in?: number
+          max_players?: number
+          min_buy_in?: number
+          name?: string
+          pot?: number | null
+          small_blind?: number
+          status?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          chips: number
+          created_at: string
+          id: string
+          username: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          chips?: number
+          created_at?: string
+          id: string
+          username: string
+        }
+        Update: {
+          avatar_url?: string | null
+          chips?: number
+          created_at?: string
+          id?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      table_players: {
+        Row: {
+          cards: Json | null
+          chips: number
+          current_bet: number | null
+          id: string
+          is_active: boolean | null
+          is_all_in: boolean | null
+          is_big_blind: boolean | null
+          is_dealer: boolean | null
+          is_folded: boolean | null
+          is_small_blind: boolean | null
+          is_turn: boolean | null
+          position: number
+          table_id: string
+          user_id: string
+        }
+        Insert: {
+          cards?: Json | null
+          chips: number
+          current_bet?: number | null
+          id?: string
+          is_active?: boolean | null
+          is_all_in?: boolean | null
+          is_big_blind?: boolean | null
+          is_dealer?: boolean | null
+          is_folded?: boolean | null
+          is_small_blind?: boolean | null
+          is_turn?: boolean | null
+          position: number
+          table_id: string
+          user_id: string
+        }
+        Update: {
+          cards?: Json | null
+          chips?: number
+          current_bet?: number | null
+          id?: string
+          is_active?: boolean | null
+          is_all_in?: boolean | null
+          is_big_blind?: boolean | null
+          is_dealer?: boolean | null
+          is_folded?: boolean | null
+          is_small_blind?: boolean | null
+          is_turn?: boolean | null
+          position?: number
+          table_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "table_players_table_id_fkey"
+            columns: ["table_id"]
+            isOneToOne: false
+            referencedRelation: "poker_tables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

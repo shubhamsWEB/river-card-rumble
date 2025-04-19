@@ -1,26 +1,238 @@
-
-import React, { useState } from 'react';
-import { PokerTable as PokerTableType } from '../types/poker';
+import React, { useState, useEffect } from 'react';
+import { supabase } from "@/integrations/supabase/client";
+import { useRealtime } from "@/contexts/RealtimeContext";
+import { useAuth } from "@/contexts/AuthContext";
 import PlayerPosition from './PlayerPosition';
 import CommunityCards from './CommunityCards';
 import ActionButtons from './ActionButtons';
 import ChatBox from './ChatBox';
 import PokerChip from './PokerChip';
-import { ChatMessage } from '../types/poker';
+import { ChatMessage, Card, Player } from '../types/poker';
 import { v4 as uuidv4 } from 'uuid';
+import { Loader2 } from 'lucide-react';
 
 interface PokerTableProps {
-  table: PokerTableType;
-  chatMessages: ChatMessage[];
+  tableId: string;
+  onAction: (action: string, amount?: number) => void;
+  onSendMessage: (message: string) => void;
 }
 
-const PokerTable: React.FC<PokerTableProps> = ({ table, chatMessages: initialChatMessages }) => {
-  const [localTable, setLocalTable] = useState<PokerTableType>(table);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(initialChatMessages);
+const PokerTable: React.FC<PokerTableProps> = ({ tableId, onAction, onSendMessage }) => {
+  const { user, profile } = useAuth();
+  const { subscribe } = useRealtime();
   
-  // Get current player (for this demo we assume it's player with position 0)
-  const currentPlayer = localTable.players.find(p => p.position === 0);
-
+  const [isLoading, setIsLoading] = useState(true);
+  const [table, setTable] = useState<any>(null);
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [communityCards, setCommunityCards] = useState<Card[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
+  
+  // Load initial data and subscribe to changes
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        // Load table data
+        const { data: tableData, error: tableError } = await supabase
+          .from('poker_tables')
+          .select('*')
+          .eq('id', tableId)
+          .single();
+        
+        if (tableError) throw tableError;
+        setTable(tableData);
+        
+        // Load players
+        await loadPlayers();
+        
+        // Load community cards
+        await loadCommunityCards();
+        
+        // Load chat messages
+        await loadChatMessages();
+        
+        // Subscribe to real-time updates
+        const unsubscribe = subscribe(tableId, handleRealtimeUpdate);
+        
+        return () => {
+          unsubscribe();
+        };
+      } catch (error) {
+        console.error('Error loading table data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadData();
+  }, [tableId]);
+  
+  // Keep track of current player
+  useEffect(() => {
+    if (players.length > 0 && user) {
+      const currentPlayerData = players.find(p => p.id === user.id);
+      setCurrentPlayer(currentPlayerData || null);
+    }
+  }, [players, user]);
+  
+  const loadPlayers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('table_players')
+        .select(`
+          id,
+          user_id,
+          position,
+          chips,
+          current_bet,
+          is_active,
+          is_dealer,
+          is_small_blind,
+          is_big_blind,
+          is_turn,
+          is_folded,
+          is_all_in,
+          cards,
+          profiles:user_id(username, avatar_url)
+        `)
+        .eq('table_id', tableId);
+      
+      if (error) throw error;
+      
+      const formattedPlayers = (data || []).map(item => ({
+        id: item.user_id,
+        name: item.profiles.username,
+        position: item.position,
+        chips: item.chips,
+        cards: (item.cards as Card[]) || [],
+        isActive: item.is_active,
+        isTurn: item.is_turn,
+        isFolded: item.is_folded,
+        isAllIn: item.is_all_in,
+        isDealer: item.is_dealer,
+        isSmallBlind: item.is_small_blind,
+        isBigBlind: item.is_big_blind,
+        currentBet: item.current_bet,
+        avatar: item.profiles.avatar_url || undefined
+      }));
+      
+      setPlayers(formattedPlayers);
+    } catch (error) {
+      console.error('Error loading players:', error);
+    }
+  };
+  
+  const loadCommunityCards = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('community_cards')
+        .select('*')
+        .eq('table_id', tableId)
+        .order('card_index', { ascending: true });
+      
+      if (error) throw error;
+      
+      const cards = (data || []).map(card => ({
+        suit: card.suit,
+        rank: card.rank,
+        faceUp: true
+      }));
+      
+      // Ensure we have 5 cards (some may be face down)
+      const allCards: Card[] = Array(5).fill(null).map((_, i) => {
+        return cards[i] || { suit: 'spades', rank: 'A', faceUp: false };
+      });
+      
+      setCommunityCards(allCards);
+    } catch (error) {
+      console.error('Error loading community cards:', error);
+    }
+  };
+  
+  const loadChatMessages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select(`
+          id,
+          user_id,
+          message,
+          created_at,
+          profiles:user_id(username)
+        `)
+        .eq('table_id', tableId)
+        .order('created_at', { ascending: true })
+        .limit(50);
+      
+      if (error) throw error;
+      
+      const messages: ChatMessage[] = (data || []).map(msg => ({
+        id: msg.id,
+        playerId: msg.user_id,
+        playerName: msg.profiles.username,
+        message: msg.message,
+        timestamp: new Date(msg.created_at).getTime()
+      }));
+      
+      setChatMessages(messages);
+    } catch (error) {
+      console.error('Error loading chat messages:', error);
+    }
+  };
+  
+  const handleRealtimeUpdate = async (update: any) => {
+    // Process updates based on type
+    switch (update.type) {
+      case 'table':
+        setTable(update.payload.new);
+        break;
+        
+      case 'player':
+        // Refresh players when any player data changes
+        await loadPlayers();
+        break;
+        
+      case 'card':
+        // Refresh community cards when they change
+        await loadCommunityCards();
+        break;
+        
+      case 'chat':
+        if (update.payload.eventType === 'INSERT') {
+          // Load the new chat message
+          const { data, error } = await supabase
+            .from('chat_messages')
+            .select(`
+              id,
+              user_id,
+              message,
+              created_at,
+              profiles:user_id(username)
+            `)
+            .eq('id', update.payload.new.id)
+            .single();
+          
+          if (!error && data) {
+            const newMessage: ChatMessage = {
+              id: data.id,
+              playerId: data.user_id,
+              playerName: data.profiles.username,
+              message: data.message,
+              timestamp: new Date(data.created_at).getTime()
+            };
+            
+            setChatMessages(prev => [...prev, newMessage]);
+          }
+        }
+        break;
+        
+      case 'action':
+        // Actions are handled by the server and result in updates to the table/player state
+        break;
+    }
+  };
+  
   // Position players around the table
   const getPlayerPositionStyle = (position: number) => {
     // Calculate position around an oval table
@@ -42,102 +254,22 @@ const PokerTable: React.FC<PokerTableProps> = ({ table, chatMessages: initialCha
       transform: 'translate(-50%, -50%)'
     };
   };
-
-  // Handle player actions
-  const handleAction = (action: string, amount?: number) => {
-    if (!currentPlayer) return;
-
-    setLocalTable(prev => {
-      // Create a copy of players
-      const updatedPlayers = prev.players.map(player => {
-        if (player.id === currentPlayer.id) {
-          // Update the current player
-          let updatedPlayer = { ...player, isTurn: false };
-          
-          switch (action) {
-            case 'fold':
-              updatedPlayer.isFolded = true;
-              updatedPlayer.currentBet = 0;
-              break;
-            case 'check':
-              // No changes to chips or current bet
-              break;
-            case 'call':
-              if (amount) {
-                const callAmount = Math.min(amount, player.chips);
-                updatedPlayer.chips -= callAmount;
-                updatedPlayer.currentBet += callAmount;
-              }
-              break;
-            case 'bet':
-            case 'raise':
-              if (amount) {
-                const betAmount = Math.min(amount, player.chips);
-                updatedPlayer.chips -= betAmount;
-                updatedPlayer.currentBet = betAmount;
-              }
-              break;
-            case 'all-in':
-              updatedPlayer.isAllIn = true;
-              updatedPlayer.currentBet += updatedPlayer.chips;
-              updatedPlayer.chips = 0;
-              break;
-          }
-          
-          return updatedPlayer;
-        } else if (player.position === (currentPlayer.position + 2) % 10) {
-          // Make next player's turn (for demo purposes, just go clockwise by 2 positions)
-          return { ...player, isTurn: true };
-        }
-        return player;
-      });
-      
-      // Calculate new pot
-      const newPot = updatedPlayers.reduce((sum, player) => sum + player.currentBet, 0);
-      
-      // Update last action
-      const lastAction = {
-        playerId: currentPlayer.id,
-        action: action as any,
-        amount: amount
-      };
-      
-      // Progress game round for demo purposes
-      let newRound = prev.round;
-      if (action !== 'fold' && (action === 'check' || action === 'call')) {
-        // Simulate round progression
-        if (prev.round === 'preflop') newRound = 'flop';
-        else if (prev.round === 'flop') newRound = 'turn';
-        else if (prev.round === 'turn') newRound = 'river';
-        else if (prev.round === 'river') newRound = 'showdown';
-      }
-      
-      return {
-        ...prev,
-        players: updatedPlayers,
-        pot: newPot,
-        currentBet: action === 'bet' || action === 'raise' ? (amount || prev.currentBet) : prev.currentBet,
-        round: newRound,
-        lastAction,
-        activePlayerId: updatedPlayers.find(p => p.isTurn)?.id || null
-      };
-    });
-  };
-
-  // Handle chat messages
+  
+  // Handle sending chat messages
   const handleSendMessage = (message: string) => {
-    if (!currentPlayer) return;
-    
-    const newMessage: ChatMessage = {
-      id: uuidv4(),
-      playerId: currentPlayer.id,
-      playerName: currentPlayer.name,
-      message,
-      timestamp: Date.now()
-    };
-    
-    setChatMessages(prev => [...prev, newMessage]);
+    onSendMessage(message);
   };
+  
+  if (isLoading || !table) {
+    return (
+      <div className="w-full h-[calc(100vh-100px)] flex items-center justify-center bg-gray-900">
+        <div className="flex flex-col items-center">
+          <Loader2 className="h-12 w-12 text-white animate-spin mb-4" />
+          <p className="text-white text-lg">Loading poker table...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-full h-[calc(100vh-100px)] poker-table rounded-full overflow-hidden">
@@ -145,12 +277,12 @@ const PokerTable: React.FC<PokerTableProps> = ({ table, chatMessages: initialCha
       <div className="absolute inset-0 flex items-center justify-center">
         {/* Community cards and pot */}
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
-          <CommunityCards cards={localTable.communityCards} round={localTable.round} />
+          <CommunityCards cards={communityCards} round={table.current_round} />
           
-          {localTable.pot > 0 && (
+          {table.pot > 0 && (
             <div className="flex flex-col items-center">
               <div className="flex -space-x-1">
-                {[...Array(Math.min(5, Math.ceil(localTable.pot / 20)))].map((_, i) => (
+                {[...Array(Math.min(5, Math.ceil(table.pot / 20)))].map((_, i) => (
                   <PokerChip 
                     key={i} 
                     value={20} 
@@ -159,29 +291,29 @@ const PokerTable: React.FC<PokerTableProps> = ({ table, chatMessages: initialCha
                   />
                 ))}
               </div>
-              <div className="text-white font-bold mt-1">Pot: ${localTable.pot}</div>
+              <div className="text-white font-bold mt-1">Pot: ${table.pot}</div>
             </div>
           )}
         </div>
         
         {/* Players positioned around the table */}
-        {localTable.players.map(player => (
+        {players.map(player => (
           <div key={player.id} style={getPlayerPositionStyle(player.position)}>
             <PlayerPosition 
               player={player} 
-              isCurrentUser={player.position === 0} 
+              isCurrentUser={player.id === user?.id} 
             />
           </div>
         ))}
         
-        {/* Action buttons */}
+        {/* Action buttons - only show if it's the current user's turn */}
         {currentPlayer?.isTurn && (
           <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2">
             <ActionButtons
-              currentBet={localTable.currentBet}
-              pot={localTable.pot}
+              currentBet={table.current_bet}
+              pot={table.pot}
               playerChips={currentPlayer.chips}
-              onAction={handleAction}
+              onAction={onAction}
             />
           </div>
         )}
@@ -189,9 +321,9 @@ const PokerTable: React.FC<PokerTableProps> = ({ table, chatMessages: initialCha
         {/* Game info */}
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black bg-opacity-50 px-4 py-1 rounded-full">
           <div className="text-white text-sm">
-            <span className="mr-3">Small Blind: ${localTable.smallBlind}</span>
-            <span className="mr-3">Big Blind: ${localTable.bigBlind}</span>
-            <span>Round: {localTable.round}</span>
+            <span className="mr-3">Small Blind: ${table.small_blind}</span>
+            <span className="mr-3">Big Blind: ${table.big_blind}</span>
+            <span>Round: {table.current_round}</span>
           </div>
         </div>
         

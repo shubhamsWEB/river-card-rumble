@@ -5,9 +5,10 @@ import { Card as CardType } from '../types/poker';
 interface PokerCardProps {
   card: CardType;
   className?: string;
+  style?: React.CSSProperties;
 }
 
-const PokerCard: React.FC<PokerCardProps> = ({ card, className = '' }) => {
+const PokerCard: React.FC<PokerCardProps> = ({ card, className = '', style }) => {
   const { suit, rank, faceUp } = card;
 
   const getSuitSymbol = (suit: string) => {
@@ -26,7 +27,7 @@ const PokerCard: React.FC<PokerCardProps> = ({ card, className = '' }) => {
 
   if (!faceUp) {
     return (
-      <div className={`poker-card relative w-16 h-24 rounded-md overflow-hidden shadow-md ${className}`}>
+      <div className={`poker-card relative w-16 h-24 rounded-md overflow-hidden shadow-md ${className}`} style={style}>
         <div className="poker-card-back absolute inset-0 bg-poker-card-back border-2 border-white flex items-center justify-center">
           <div className="text-white text-opacity-30 text-4xl font-bold">♠</div>
         </div>
@@ -35,7 +36,7 @@ const PokerCard: React.FC<PokerCardProps> = ({ card, className = '' }) => {
   }
 
   return (
-    <div className={`poker-card relative w-16 h-24 rounded-md overflow-hidden shadow-md ${className}`}>
+    <div className={`poker-card relative w-16 h-24 rounded-md overflow-hidden shadow-md ${className}`} style={style}>
       <div className="poker-card-front absolute inset-0 bg-poker-card border-2 border-gray-200 p-1 flex flex-col">
         <div className={`text-xs font-bold ${getSuitColor(suit)} flex items-center justify-between`}>
           <span>{rank}</span>
